@@ -21,25 +21,27 @@ const (
 	defaultChattiness = 0.01
 	stop              = "\x01"
 	separator         = "\x02"
-	version           = botName + " v0.1"
+	always            = 1.0
+	version           = botName + " v0.2"
 	redisHost         = "localhost:6379"
+	corpusPerChannel  = false
+	smileyChance      = 0.5
+	debug             = true
 )
 
 var (
+	Corpus redis.Conn
+
 	ownMention   = regexp.MustCompile(botName + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
-	Corpus       redis.Conn
+	smileys      = []string{"8<", ":-<", ":'-<", ":(", ":<", ":'<", ":--<", ":[", ":/", ":S", "\\:</", "xD", "D:", ":|", "kek"}
 )
-
-func printErr(err error) {
-	fmt.Fprintf(os.Stderr, "\n[redis error]: %v\n", err.Error())
-}
 
 func main() {
 
 	rdb, err := redis.Dial("tcp", redisHost)
 	if err != nil {
-		print(err)
+		printErr(err)
 		os.Exit(1)
 	}
 	Corpus = rdb
@@ -48,7 +50,7 @@ func main() {
 
 	con := irc.IRC(botName, botName)
 	con.UseTLS = true
-	con.Debug = true
+	con.Debug = debug
 	con.Version = version
 	con.Connect("chat.freenode.net:7000")
 
@@ -57,12 +59,16 @@ func main() {
 	})
 
 	con.AddCallback("JOIN", func(e *irc.Event) {
-		con.Privmsg(roomName, "kek")
+		con.Privmsg(roomName, randomSmiley())
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		response, incentive := processInput(e.Message())
-		if len(response) > 0 && response != stop && incentive > rand.Float64() {
+		response, chattiness := processInput(e.Message())
+
+		if !isEmpty(response) && chattiness > rand.Float64() {
+			if chattiness == always {
+				response = e.Nick + ": " + strings.TrimSpace(response)
+			}
 			channel := e.Arguments[0]
 			con.Privmsg(channel, response)
 		}
@@ -71,9 +77,13 @@ func main() {
 	con.Loop()
 }
 
+func isEmpty(text string) bool {
+	return len(text) == 0 || text == stop
+}
+
 func processInput(message string) (string, float64) {
 
-	words, chattiness := normalizeInput(message)
+	words, chattiness := parseInput(message)
 	groups := generateChainGroups(words)
 
 	if chainLength < len(words) && len(words) <= maxChainLength {
@@ -82,16 +92,22 @@ func processInput(message string) (string, float64) {
 
 	response := generateResponse(groups)
 
+	if isEmpty(response) {
+		response = randomSmiley()
+	} else if smileyChance > rand.Float64() {
+		response = response + " " + randomSmiley()
+	}
+
 	return response, chattiness
 }
 
-func normalizeInput(message string) ([]string, float64) {
+func parseInput(message string) ([]string, float64) {
 	chattiness := defaultChattiness
 	message = strings.ToLower(message)
 
 	if ownMention.MatchString(message) {
 		message = ownMention.ReplaceAllString(message, "")
-		chattiness = 1.0
+		chattiness = always
 	}
 	if otherMention.MatchString(message) {
 		message = otherMention.ReplaceAllString(message, "")
@@ -112,10 +128,15 @@ func normalizeInput(message string) ([]string, float64) {
 
 func addToCorpus(groups [][]string) {
 	for i, group := range groups {
-		fmt.Println("group #" + fmt.Sprint(i) + ": " + dump(group))
+
+		if debug {
+			fmt.Println("group  #" + fmt.Sprint(i) + ":\t" + dump(group))
+		}
+
 		cut := len(group) - 1
-		key := strings.Join(group[:cut], separator)
+		key := corpusKey(strings.Join(group[:cut], separator))
 		value := group[cut:][0]
+
 		_, err := Corpus.Do("SADD", key, value)
 		if err != nil {
 			printErr(err)
@@ -126,8 +147,18 @@ func addToCorpus(groups [][]string) {
 		if err != nil {
 			printErr(err)
 		}
-		fmt.Println("Corpus[" + key + "]=" + dump(chainValues))
+
+		if debug {
+			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
+		}
 	}
+}
+
+func corpusKey(key string) string {
+	if corpusPerChannel {
+		key = roomName + key
+	}
+	return key
 }
 
 func generateChainGroups(words []string) [][]string {
@@ -155,19 +186,24 @@ func generateResponse(groups [][]string) string {
 
 	for _, group := range groups {
 		best := ""
+
 		for range [chainsToTry]struct{}{} {
-			response := randomResponse(group)
+			response := randomChain(group)
 			if len(response) > len(best) {
 				best = response
 			}
 		}
+
 		if len(best) > 2 && best != groups[0][0] {
 			responses = append(responses, best)
 		}
 	}
 
 	responses = deduplicate(responses)
-	fmt.Print("responses: " + dump(responses))
+
+	if debug {
+		fmt.Println("responses:\t" + dump(responses))
+	}
 
 	count := len(responses)
 	if count > 0 {
@@ -178,26 +214,10 @@ func generateResponse(groups [][]string) string {
 
 }
 
-func dump(texts []string) string {
-	var buffer bytes.Buffer
-
-	buffer.WriteString("[")
-	for i, text := range texts {
-		if i > 0 {
-			buffer.WriteString(", ")
-		}
-		buffer.WriteString("\"" + text + "\"")
-	}
-	buffer.WriteString("]")
-	return buffer.String()
-}
-
-func randomResponse(words []string) string {
+func randomChain(words []string) string {
 
 	chainKey := strings.Join(words[:chainLength], separator)
 	response := []string{words[0]}
-
-	//fmt.Print("rootKey: " + chainKey)
 
 	for range [maxChainLength]struct{}{} {
 		word := randomWord(chainKey)
@@ -205,19 +225,16 @@ func randomResponse(words []string) string {
 			words = append(words[1:], word)
 			response = append(response, words[0])
 			chainKey = strings.Join(words, separator)
-			//fmt.Print(" | " + chainKey)
 		} else {
 			break
 		}
 	}
 
-	//fmt.Println("\tresponse: " + dump(response))
-
 	return strings.Join(response, " ")
 }
 
 func randomWord(key string) string {
-	value, err := redis.String(Corpus.Do("SRANDMEMBER", key))
+	value, err := redis.String(Corpus.Do("SRANDMEMBER", corpusKey(key)))
 	if err == nil || err == redis.ErrNil {
 		return value
 	} else {
@@ -225,6 +242,10 @@ func randomWord(key string) string {
 	}
 	return stop
 
+}
+
+func randomSmiley() string {
+	return smileys[rand.Intn(len(smileys))]
 }
 
 func deduplicate(col []string) []string {
@@ -242,4 +263,22 @@ func deduplicate(col []string) []string {
 		i++
 	}
 	return list
+}
+
+func dump(texts []string) string {
+	var buffer bytes.Buffer
+
+	buffer.WriteString("[")
+	for i, text := range texts {
+		if i > 0 {
+			buffer.WriteString(", ")
+		}
+		buffer.WriteString("\"" + text + "\"")
+	}
+	buffer.WriteString("]")
+	return buffer.String()
+}
+
+func printErr(err error) {
+	fmt.Fprintf(os.Stderr, "\n[redis error]: %v\n", err.Error())
 }
