@@ -1,5 +1,6 @@
 # bot binary
 meowkov
+data
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o
