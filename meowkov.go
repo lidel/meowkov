@@ -22,8 +22,8 @@ const (
 	stop              = "\x01"
 	separator         = "\x02"
 	always            = 1.0
-	version           = botName + " v0.2"
 	redisHost         = "localhost:6379"
+	ircHost           = "chat.freenode.net:7000"
 	corpusPerChannel  = false
 	smileyChance      = 0.5
 	debug             = true
@@ -31,7 +31,8 @@ const (
 )
 
 var (
-	Corpus redis.Conn
+	Corpus  redis.Conn
+	version string
 
 	ownMention   = regexp.MustCompile(botName + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
@@ -52,8 +53,8 @@ func main() {
 	con := irc.IRC(botName, botName)
 	con.UseTLS = true
 	con.Debug = debug
-	con.Version = version
-	con.Connect("chat.freenode.net:7000")
+	con.Version = botName + "@" + version
+	con.Connect(ircHost)
 
 	con.AddCallback("001", func(e *irc.Event) {
 		con.Join(roomName)
