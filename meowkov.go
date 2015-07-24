@@ -27,6 +27,7 @@ const (
 	corpusPerChannel  = false
 	smileyChance      = 0.5
 	debug             = true
+	wordsPerMinute    = 100
 )
 
 var (
@@ -69,6 +70,7 @@ func main() {
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
+			typingDelay(response)
 			channel := e.Arguments[0]
 			con.Privmsg(channel, response)
 		}
@@ -79,6 +81,15 @@ func main() {
 
 func isEmpty(text string) bool {
 	return len(text) == 0 || text == stop
+}
+
+func typingDelay(text string) {
+	// https://en.wikipedia.org/wiki/Words_per_minute
+	typing := ((float64(len(text)) / 5) / wordsPerMinute) * 60
+	if debug {
+		fmt.Println("typing delay: " + fmt.Sprint(typing))
+	}
+	time.Sleep(time.Duration(typing) * time.Second)
 }
 
 func processInput(message string) (string, float64) {
