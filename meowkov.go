@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	Corpus  redis.Conn
+	corpus  redis.Conn
 	version string
 
 	ownMention   = regexp.MustCompile(botName + "_*[:,]*\\s*")
@@ -46,7 +46,7 @@ func main() {
 		printErr(err)
 		os.Exit(1)
 	}
-	Corpus = rdb
+	corpus = rdb
 
 	rand.Seed(time.Now().Unix())
 
@@ -125,8 +125,10 @@ func parseInput(message string) ([]string, float64) {
 		message = otherMention.ReplaceAllString(message, "")
 	}
 
-	tokens := strings.Split(message, " ")
-	words := make([]string, 0)
+	var (
+		tokens = strings.Split(message, " ")
+		words  []string
+	)
 
 	for _, token := range tokens {
 		token = strings.TrimSpace(token)
@@ -149,13 +151,13 @@ func addToCorpus(groups [][]string) {
 		key := corpusKey(strings.Join(group[:cut], separator))
 		value := group[cut:][0]
 
-		_, err := Corpus.Do("SADD", key, value)
+		_, err := corpus.Do("SADD", key, value)
 		if err != nil {
 			printErr(err)
 			continue
 		}
 
-		chainValues, err := redis.Strings(Corpus.Do("SMEMBERS", key))
+		chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
 		if err != nil {
 			printErr(err)
 		}
@@ -174,10 +176,12 @@ func corpusKey(key string) string {
 }
 
 func generateChainGroups(words []string) [][]string {
-	length := len(words)
-	groups := make([][]string, 0)
+	var (
+		length = len(words)
+		groups [][]string
+	)
 
-	for i, _ := range words {
+	for i := range words {
 		end := i + chainLength + 1
 
 		if end > length {
@@ -194,7 +198,7 @@ func generateChainGroups(words []string) [][]string {
 }
 
 func generateResponse(groups [][]string) string {
-	responses := make([]string, 0)
+	var responses []string
 
 	for _, group := range groups {
 		best := ""
@@ -220,9 +224,8 @@ func generateResponse(groups [][]string) string {
 	count := len(responses)
 	if count > 0 {
 		return responses[rand.Intn(count)]
-	} else {
-		return stop
 	}
+	return stop
 
 }
 
@@ -246,14 +249,12 @@ func randomChain(words []string) string {
 }
 
 func randomWord(key string) string {
-	value, err := redis.String(Corpus.Do("SRANDMEMBER", corpusKey(key)))
+	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
 	if err == nil || err == redis.ErrNil {
 		return value
-	} else {
-		printErr(err)
 	}
+	printErr(err)
 	return stop
-
 }
 
 func randomSmiley() string {

@@ -9,7 +9,7 @@ all: lint build
 build: deps
 	$(GO) build -ldflags $(GITHASH)  meowkov.go
 lint:
-	$(GOLINT)
+	@$(GOLINT)
 deps:
 	 @echo $(DEPS) | xargs -n1 go get -v
 updatedeps:
