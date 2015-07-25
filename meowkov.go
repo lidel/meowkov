@@ -22,7 +22,6 @@ const (
 	stop              = "\x01"
 	separator         = "\x02"
 	always            = 1.0
-	redisHost         = "localhost:6379"
 	ircHost           = "chat.freenode.net:7000"
 	corpusPerChannel  = false
 	smileyChance      = 0.5
@@ -36,12 +35,14 @@ var (
 
 	ownMention   = regexp.MustCompile(botName + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
-	smileys      = []string{"8<", ":-<", ":'-<", ":(", ":<", ":'<", ":--<", ":[", ":/", ":S", "\\:</", "xD", "D:", ":|", "kek"}
+	smileys      = []string{"8<", ":-<", ":'-<", ":(", ":<", ":'<", ":--<", ":[", ":/", ":S", "\\:</", "xD", "D:", ":|", "kek", "( ͡° ͜ʖ ͡°)"}
+
+	redisHost = "localhost"
+	redisPort = "6379"
 )
 
 func main() {
-
-	rdb, err := redis.Dial("tcp", redisHost)
+	rdb, err := redis.Dial("tcp", redisAddr())
 	if err != nil {
 		printErr(err)
 		os.Exit(1)
@@ -80,6 +81,19 @@ func main() {
 	con.Loop()
 }
 
+func redisAddr() string {
+	// support for dockerized redis
+	env := "REDIS_PORT_" + redisPort + "_TCP_ADDR"
+	host := os.Getenv(env)
+	if debug {
+		fmt.Println(env + "=" + fmt.Sprint(host))
+	}
+	if host != "" {
+		redisHost = host
+	}
+	return redisHost + ":" + redisPort
+}
+
 func isEmpty(text string) bool {
 	return len(text) == 0 || text == stop
 }
@@ -94,7 +108,6 @@ func typingDelay(text string) {
 }
 
 func processInput(message string) (string, float64) {
-
 	words, chattiness := parseInput(message)
 	groups := generateChainGroups(words)
 
@@ -230,7 +243,6 @@ func generateResponse(groups [][]string) string {
 }
 
 func randomChain(words []string) string {
-
 	chainKey := strings.Join(words[:chainLength], separator)
 	response := []string{words[0]}
 
