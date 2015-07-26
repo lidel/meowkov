@@ -54,7 +54,7 @@ func main() {
 	con := irc.IRC(botName, botName)
 	con.UseTLS = true
 	con.Debug = debug
-	con.Version = botName + "@" + version
+	con.Version = botName + "@" + version + " (https://github.com/lidel/meowkov)"
 	con.Connect(ircHost)
 
 	con.AddCallback("001", func(e *irc.Event) {
