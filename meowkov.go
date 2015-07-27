@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/thoj/go-ircevent"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -66,19 +68,7 @@ func loadConfig() {
 
 	fmt.Printf("%#v\n", config)
 
-	// additional validation
-	_, _, err = net.SplitHostPort(config.IrcServer)
-	check(err)
-
-	// other inits
-	ownMention = regexp.MustCompile(config.BotName + "_*[:,]*\\s*")
-	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
-}
-
-func main() {
-
-	loadConfig()
-
+	// init Redis
 	rdb, err := redis.Dial("tcp", redisAddr())
 	if err != nil {
 		redisErr(err)
@@ -86,8 +76,51 @@ func main() {
 	}
 	corpus = rdb
 
-	rand.Seed(time.Now().Unix())
+	// irc server validation
+	_, _, err = net.SplitHostPort(config.IrcServer)
+	check(err)
 
+	// other inits
+	rand.Seed(time.Now().Unix())
+	ownMention = regexp.MustCompile(config.BotName + "_*[:,]*\\s*")
+	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
+}
+
+func main() {
+	importMode := flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
+	loadConfig()
+	if *importMode {
+		importLoop()
+	} else {
+		ircLoop()
+	}
+}
+
+func importLoop() {
+	fi, err := os.Stdin.Stat()
+	check(err)
+	if fi.Mode()&os.ModeNamedPipe == 0 {
+		fmt.Fprintln(os.Stderr, "no input: please pipe some data in and try again")
+		os.Exit(1)
+	} else {
+		fmt.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					panic(err)
+				}
+				fmt.Println("IMPORT finished.")
+				break
+			}
+			processInput(line)
+		}
+	}
+
+}
+
+func ircLoop() {
 	con := irc.IRC(config.BotName, config.BotName)
 	con.UseTLS = config.UseTLS
 	con.Debug = config.Debug
@@ -104,7 +137,8 @@ func main() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		response, chattiness := processInput(e.Message())
+		groups, chattiness := processInput(e.Message())
+		response := generateResponse(groups)
 
 		if !isEmpty(response) && chattiness > rand.Float64() {
 			if chattiness == always {
@@ -149,7 +183,7 @@ func typingDelay(text string) {
 	time.Sleep(time.Duration(typing) * time.Second)
 }
 
-func processInput(message string) (string, float64) {
+func processInput(message string) ([][]string, float64) {
 	words, chattiness := parseInput(message)
 	groups := generateChainGroups(words)
 
@@ -157,15 +191,7 @@ func processInput(message string) (string, float64) {
 		addToCorpus(groups)
 	}
 
-	response := generateResponse(groups)
-
-	if isEmpty(response) {
-		response = randomSmiley()
-	} else if config.SmileyChance > rand.Float64() {
-		response = response + " " + randomSmiley()
-	}
-
-	return response, chattiness
+	return groups, chattiness
 }
 
 func parseInput(message string) ([]string, float64) {
@@ -254,7 +280,10 @@ func generateChainGroups(words []string) [][]string {
 }
 
 func generateResponse(groups [][]string) string {
-	var responses []string
+	var (
+		responses []string
+		response  string
+	)
 
 	for _, group := range groups {
 		best := ""
@@ -279,10 +308,18 @@ func generateResponse(groups [][]string) string {
 
 	count := len(responses)
 	if count > 0 {
-		return responses[rand.Intn(count)]
+		response = responses[rand.Intn(count)]
+	} else {
+		response = stop
 	}
-	return stop
 
+	if isEmpty(response) {
+		response = randomSmiley()
+	} else if config.SmileyChance > rand.Float64() {
+		response = response + " " + randomSmiley()
+	}
+
+	return response
 }
 
 func randomChain(words []string) string {
