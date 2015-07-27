@@ -1,0 +1,37 @@
+{
+    "BotName":  "dev-meowkov",
+    "RoomName": "#meowkov",
+	"IrcServer": "chat.freenode.net:7000",
+    "UseTLS": true,
+    "Debug": true,
+
+	"RedisServer": "localhost:6379",
+    "CorpusPerChannel": false,
+
+	"ChainLength":          2,
+	"MaxChainLength":      30,
+	"ChainsToTry":         30,
+
+	"DefaultChattiness": 0.01,
+	"SmileyChance":      0.50,
+	"WordsPerMinute":     100,
+
+    "Smileys": [
+        "8<",
+        ":-<",
+        ":'-<",
+        ":(",
+        ":<",
+        ":'<",
+        ":--<",
+        ":[",
+        ":/",
+        ":S",
+        "\\:</",
+        "xD",
+        "D:",
+        ":|",
+        "kek",
+        "( ͡° ͜ʖ ͡°)"
+        ]
+}

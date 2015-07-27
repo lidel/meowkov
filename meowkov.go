@@ -2,67 +2,105 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"github.com/thoj/go-ircevent"
+	"io/ioutil"
 	"math/rand"
+	"net"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 )
 
+// MeowkovConfig defines key names of the config file in JSON format
+type MeowkovConfig struct {
+	BotName   string
+	RoomName  string
+	IrcServer string
+	UseTLS    bool
+	Debug     bool
+
+	RedisServer      string
+	CorpusPerChannel bool
+
+	ChainLength    int64
+	MaxChainLength int64
+	ChainsToTry    int64
+
+	DefaultChattiness float64
+	SmileyChance      float64
+	WordsPerMinute    int64
+
+	Smileys []string
+}
+
 const (
-	botName           = "meowkov"
-	roomName          = "#meowkov"
-	chainLength       = 2
-	maxChainLength    = 30
-	chainsToTry       = 30
-	defaultChattiness = 0.01
-	stop              = "\x01"
-	separator         = "\x02"
-	always            = 1.0
-	ircHost           = "chat.freenode.net:7000"
-	corpusPerChannel  = false
-	smileyChance      = 0.5
-	debug             = true
-	wordsPerMinute    = 100
+	stop      = "\x01"
+	separator = "\x02"
+	always    = 1.0
 )
 
 var (
 	corpus  redis.Conn
+	config  MeowkovConfig
 	version string
 
-	ownMention   = regexp.MustCompile(botName + "_*[:,]*\\s*")
-	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
-	smileys      = []string{"8<", ":-<", ":'-<", ":(", ":<", ":'<", ":--<", ":[", ":/", ":S", "\\:</", "xD", "D:", ":|", "kek", "( ͡° ͜ʖ ͡°)"}
-
-	redisHost = "localhost"
-	redisPort = "6379"
+	ownMention   *regexp.Regexp
+	otherMention *regexp.Regexp
 )
 
+func loadConfig() {
+	confPath := flag.String("c", "meowkov.conf", "path to the config file")
+	flag.Parse()
+
+	fmt.Println("Loading config file: " + *confPath)
+
+	jsonData, err := ioutil.ReadFile(*confPath)
+	check(err)
+	err = json.Unmarshal(jsonData, &config)
+	check(err)
+
+	fmt.Printf("%#v\n", config)
+
+	// additional validation
+	_, _, err = net.SplitHostPort(config.IrcServer)
+	check(err)
+
+	// other inits
+	ownMention = regexp.MustCompile(config.BotName + "_*[:,]*\\s*")
+	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
+}
+
 func main() {
+
+	loadConfig()
+
 	rdb, err := redis.Dial("tcp", redisAddr())
 	if err != nil {
-		printErr(err)
+		redisErr(err)
 		os.Exit(1)
 	}
 	corpus = rdb
 
 	rand.Seed(time.Now().Unix())
 
-	con := irc.IRC(botName, botName)
-	con.UseTLS = true
-	con.Debug = debug
-	con.Version = botName + "@" + version + " (https://github.com/lidel/meowkov)"
-	con.Connect(ircHost)
+	con := irc.IRC(config.BotName, config.BotName)
+	con.UseTLS = config.UseTLS
+	con.Debug = config.Debug
+	con.Version = "meowkov @ " + version + " (https://github.com/lidel/meowkov)"
+
+	con.Connect(config.IrcServer)
 
 	con.AddCallback("001", func(e *irc.Event) {
-		con.Join(roomName)
+		con.Join(config.RoomName)
 	})
 
 	con.AddCallback("JOIN", func(e *irc.Event) {
-		con.Privmsg(roomName, randomSmiley())
+		con.Privmsg(config.RoomName, randomSmiley())
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
@@ -82,15 +120,19 @@ func main() {
 }
 
 func redisAddr() string {
+	redisHost, redisPort, err := net.SplitHostPort(config.RedisServer)
+	check(err)
+
 	// support for dockerized redis
 	env := "REDIS_PORT_" + redisPort + "_TCP_ADDR"
 	host := os.Getenv(env)
-	if debug {
-		fmt.Println(env + "=" + fmt.Sprint(host))
-	}
 	if host != "" {
 		redisHost = host
+		if config.Debug {
+			fmt.Println(env + "=" + fmt.Sprint(host))
+		}
 	}
+
 	return redisHost + ":" + redisPort
 }
 
@@ -100,8 +142,8 @@ func isEmpty(text string) bool {
 
 func typingDelay(text string) {
 	// https://en.wikipedia.org/wiki/Words_per_minute
-	typing := ((float64(len(text)) / 5) / wordsPerMinute) * 60
-	if debug {
+	typing := ((float64(len(text)) / 5) / float64(config.WordsPerMinute)) * 60
+	if config.Debug {
 		fmt.Println("typing delay: " + fmt.Sprint(typing))
 	}
 	time.Sleep(time.Duration(typing) * time.Second)
@@ -111,7 +153,7 @@ func processInput(message string) (string, float64) {
 	words, chattiness := parseInput(message)
 	groups := generateChainGroups(words)
 
-	if chainLength < len(words) && len(words) <= maxChainLength {
+	if int(config.ChainLength) < len(words) && len(words) <= int(config.MaxChainLength) {
 		addToCorpus(groups)
 	}
 
@@ -119,7 +161,7 @@ func processInput(message string) (string, float64) {
 
 	if isEmpty(response) {
 		response = randomSmiley()
-	} else if smileyChance > rand.Float64() {
+	} else if config.SmileyChance > rand.Float64() {
 		response = response + " " + randomSmiley()
 	}
 
@@ -127,7 +169,7 @@ func processInput(message string) (string, float64) {
 }
 
 func parseInput(message string) ([]string, float64) {
-	chattiness := defaultChattiness
+	chattiness := config.DefaultChattiness
 	message = strings.ToLower(message)
 
 	if ownMention.MatchString(message) {
@@ -156,7 +198,7 @@ func parseInput(message string) ([]string, float64) {
 func addToCorpus(groups [][]string) {
 	for i, group := range groups {
 
-		if debug {
+		if config.Debug {
 			fmt.Println("group  #" + fmt.Sprint(i) + ":\t" + dump(group))
 		}
 
@@ -166,41 +208,42 @@ func addToCorpus(groups [][]string) {
 
 		_, err := corpus.Do("SADD", key, value)
 		if err != nil {
-			printErr(err)
+			redisErr(err)
 			continue
 		}
 
 		chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
 		if err != nil {
-			printErr(err)
+			redisErr(err)
 		}
 
-		if debug {
+		if config.Debug {
 			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
 		}
 	}
 }
 
 func corpusKey(key string) string {
-	if corpusPerChannel {
-		key = roomName + key
+	if config.CorpusPerChannel {
+		key = config.RoomName + separator + key
 	}
 	return key
 }
 
 func generateChainGroups(words []string) [][]string {
 	var (
-		length = len(words)
 		groups [][]string
+		length = len(words)
+		max    = int(config.ChainLength)
 	)
 
 	for i := range words {
-		end := i + chainLength + 1
+		end := i + max + 1
 
 		if end > length {
 			end = length
 		}
-		if end-i <= chainLength {
+		if end-i <= max {
 			break
 		}
 
@@ -216,7 +259,7 @@ func generateResponse(groups [][]string) string {
 	for _, group := range groups {
 		best := ""
 
-		for range [chainsToTry]struct{}{} {
+		for i := 0; i < int(config.ChainsToTry); i++ {
 			response := randomChain(group)
 			if len(response) > len(best) {
 				best = response
@@ -230,7 +273,7 @@ func generateResponse(groups [][]string) string {
 
 	responses = deduplicate(responses)
 
-	if debug {
+	if config.Debug {
 		fmt.Println("responses:\t" + dump(responses))
 	}
 
@@ -243,10 +286,10 @@ func generateResponse(groups [][]string) string {
 }
 
 func randomChain(words []string) string {
-	chainKey := strings.Join(words[:chainLength], separator)
+	chainKey := strings.Join(words[:config.ChainLength], separator)
 	response := []string{words[0]}
 
-	for range [maxChainLength]struct{}{} {
+	for i := 0; i < int(config.MaxChainLength); i++ {
 		word := randomWord(chainKey)
 		if len(word) > 0 && word != stop {
 			words = append(words[1:], word)
@@ -265,12 +308,12 @@ func randomWord(key string) string {
 	if err == nil || err == redis.ErrNil {
 		return value
 	}
-	printErr(err)
+	redisErr(err)
 	return stop
 }
 
 func randomSmiley() string {
-	return smileys[rand.Intn(len(smileys))]
+	return config.Smileys[rand.Intn(len(config.Smileys))]
 }
 
 func deduplicate(col []string) []string {
@@ -304,6 +347,12 @@ func dump(texts []string) string {
 	return buffer.String()
 }
 
-func printErr(err error) {
+func redisErr(err error) {
 	fmt.Fprintf(os.Stderr, "\n[redis error]: %v\n", err.Error())
+}
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
 }
