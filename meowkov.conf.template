@@ -1,37 +1,38 @@
 {
-    "BotName":  "dev-meowkov",
-    "RoomName": "#meowkov",
-	"IrcServer": "chat.freenode.net:7000",
-    "UseTLS": true,
-    "Debug": true,
+  "BotName": "dev-meowkov",
+  "RoomName": "#meowkov",
+  "IrcServer": "chat.freenode.net:7000",
+  "UseTLS": true,
 
-	"RedisServer": "localhost:6379",
-    "CorpusPerChannel": false,
+  "Debug": true,
 
-	"ChainLength":          2,
-	"MaxChainLength":      30,
-	"ChainsToTry":         30,
+  "RedisServer": "localhost:6379",
+  "CorpusPerChannel": false,
 
-	"DefaultChattiness": 0.01,
-	"SmileyChance":      0.50,
-	"WordsPerMinute":     100,
+  "ChainLength": 2,
+  "MaxChainLength": 30,
+  "ChainsToTry": 30,
 
-    "Smileys": [
-        "8<",
-        ":-<",
-        ":'-<",
-        ":(",
-        ":<",
-        ":'<",
-        ":--<",
-        ":[",
-        ":/",
-        ":S",
-        "\\:</",
-        "xD",
-        "D:",
-        ":|",
-        "kek",
-        "( ͡° ͜ʖ ͡°)"
-        ]
+  "DefaultChattiness": 0.01,
+  "SmileyChance": 0.5,
+  "WordsPerMinute": 100,
+
+  "Smileys": [
+    "8<",
+    ":-<",
+    ":'-<",
+    ":(",
+    ":<",
+    ":'<",
+    ":--<",
+    ":[",
+    ":/",
+    ":S",
+    "\\:</",
+    "xD",
+    "D:",
+    ":|",
+    "kek",
+    "( ͡° ͜ʖ ͡°)"
+  ]
 }
