@@ -2,6 +2,7 @@
   "BotName": "dev-meowkov",
   "RoomName": "#meowkov",
   "IrcServer": "chat.freenode.net:7000",
+  "IrcPassword": "",
   "UseTLS": true,
 
   "Debug": true,

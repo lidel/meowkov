@@ -21,11 +21,12 @@ import (
 
 // MeowkovConfig defines key names of the config file in JSON format
 type MeowkovConfig struct {
-	BotName   string
-	RoomName  string
-	IrcServer string
-	UseTLS    bool
-	Debug     bool
+	BotName     string
+	RoomName    string
+	IrcServer   string
+	IrcPassword string
+	UseTLS      bool
+	Debug       bool
 
 	RedisServer      string
 	CorpusPerChannel bool
@@ -129,6 +130,9 @@ func ircLoop() {
 	con.UseTLS = config.UseTLS
 	con.Debug = config.Debug
 	con.Version = "meowkov @ " + version + " (https://github.com/lidel/meowkov)"
+	if config.IrcPassword != "" {
+		con.Password = config.IrcPassword
+	}
 
 	con.Connect(config.IrcServer)
 
