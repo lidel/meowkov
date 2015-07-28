@@ -15,7 +15,7 @@
 
   "DefaultChattiness": 0.01,
   "SmileyChance": 0.5,
-  "WordsPerMinute": 100,
+  "WordsPerMinute": 400,
 
   "Smileys": [
     "8<",

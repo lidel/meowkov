@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -103,18 +104,21 @@ func importLoop() {
 		fmt.Fprintln(os.Stderr, "no input: please pipe some data in and try again")
 		os.Exit(1)
 	} else {
+		config.Debug = false // improve load performance
 		fmt.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
 		reader := bufio.NewReader(os.Stdin)
+		i := 0
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
 					panic(err)
 				}
-				fmt.Println("IMPORT finished.")
+				fmt.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
 				break
 			}
 			processInput(line)
+			i++
 		}
 	}
 
@@ -137,10 +141,10 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		groups, chattiness := processInput(e.Message())
-		response := generateResponse(groups)
+		seed, chattiness := processInput(e.Message())
 
-		if !isEmpty(response) && chattiness > rand.Float64() {
+		if chattiness > rand.Float64() {
+			response := generateResponse(seed)
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
@@ -178,7 +182,7 @@ func typingDelay(text string) {
 	// https://en.wikipedia.org/wiki/Words_per_minute
 	typing := ((float64(len(text)) / 5) / float64(config.WordsPerMinute)) * 60
 	if config.Debug {
-		fmt.Println("typing delay: " + fmt.Sprint(typing))
+		fmt.Println("Typing delay: " + fmt.Sprint(typing))
 	}
 	time.Sleep(time.Duration(typing) * time.Second)
 }
@@ -187,7 +191,7 @@ func processInput(message string) ([][]string, float64) {
 	words, chattiness := parseInput(message)
 	groups := generateChainGroups(words)
 
-	if int(config.ChainLength) < len(words) && len(words) <= int(config.MaxChainLength) {
+	if int(config.ChainLength) < len(words) {
 		addToCorpus(groups)
 	}
 
@@ -238,12 +242,12 @@ func addToCorpus(groups [][]string) {
 			continue
 		}
 
-		chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
-		if err != nil {
-			redisErr(err)
-		}
-
 		if config.Debug {
+			chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
+			if err != nil {
+				redisErr(err)
+				continue
+			}
 			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
 		}
 	}
@@ -285,29 +289,26 @@ func generateResponse(groups [][]string) string {
 		response  string
 	)
 
+	if len(groups) < int(config.ChainLength) {
+		// when seed is smaller than chain size, markov is not effective
+		// so random one is better than nothing
+		groups = randomSeed(4)
+	}
+
 	for _, group := range groups {
-		best := ""
-
 		for i := 0; i < int(config.ChainsToTry); i++ {
-			response := randomChain(group)
-			if len(response) > len(best) {
-				best = response
-			}
-		}
-
-		if len(best) > 2 && best != groups[0][0] {
-			responses = append(responses, best)
+			responses = append(responses, randomChain(group))
 		}
 	}
 
-	responses = deduplicate(responses)
+	responses = normalizeResponseChains(responses)
 
 	if config.Debug {
 		fmt.Println("responses:\t" + dump(responses))
 	}
 
 	count := len(responses)
-	if count > 0 {
+	if count > 1 {
 		response = responses[rand.Intn(count)]
 	} else {
 		response = stop
@@ -323,18 +324,23 @@ func generateResponse(groups [][]string) string {
 }
 
 func randomChain(words []string) string {
-	chainKey := strings.Join(words[:config.ChainLength], separator)
-	response := []string{words[0]}
+	chain := words[:config.ChainLength]
+
+	chainKey := strings.Join(chain, separator)
+	response := []string{chain[0]}
 
 	for i := 0; i < int(config.MaxChainLength); i++ {
 		word := randomWord(chainKey)
-		if len(word) > 0 && word != stop {
-			words = append(words[1:], word)
-			response = append(response, words[0])
-			chainKey = strings.Join(words, separator)
+		if !isEmpty(word) {
+			chain = append(chain[1:], word)
+			response = append(response, chain[0])
+			chainKey = strings.Join(chain, separator)
 		} else {
 			break
 		}
+	}
+	if config.Debug {
+		fmt.Println("\trandomChain:\t" + dump(response))
 	}
 
 	return strings.Join(response, " ")
@@ -349,25 +355,76 @@ func randomWord(key string) string {
 	return stop
 }
 
+func randomSeed(times int) [][]string {
+	var seed [][]string
+	for i := 0; i < times; i++ {
+		value, err := redis.String(corpus.Do("RANDOMKEY"))
+		if err != nil && err != redis.ErrNil {
+			redisErr(err)
+			continue
+		}
+		chainKey := strings.Split(value, separator)
+		seed = append(seed, chainKey)
+	}
+
+	return seed
+}
+
 func randomSmiley() string {
 	return config.Smileys[rand.Intn(len(config.Smileys))]
 }
 
-func deduplicate(col []string) []string {
+func normalizeResponseChains(texts []string) []string {
+	if len(texts) == 0 {
+		return texts
+	}
+
+	// deduplicate
+	l := map[int]struct{}{}
 	m := map[string]struct{}{}
-	for _, v := range col {
-		if _, ok := m[v]; !ok {
-			m[v] = struct{}{}
+	for _, text := range texts {
+		if _, ok := m[text]; !ok {
+			m[text] = struct{}{}
+			l[len(text)] = struct{}{}
 		}
 	}
 	list := make([]string, len(m))
-
 	i := 0
 	for v := range m {
 		list[i] = v
 		i++
 	}
-	return list
+
+	// drop bottom half (below median)
+	var result []string
+	lengths := make([]int, 0, len(l))
+	for k := range l {
+		lengths = append(lengths, k)
+	}
+	sort.Ints(lengths)
+	threshold := median(lengths)
+	for i := range list {
+		text := list[i]
+		if len(text) >= threshold {
+			result = append(result, text)
+		}
+	}
+	if config.Debug {
+		fmt.Println("Discarded responses shorter than median of " + fmt.Sprint(threshold) + " characters")
+	}
+
+	return result
+}
+
+func median(numbers []int) int {
+	length := len(numbers)
+	middle := length / 2
+
+	result := numbers[middle]
+	if middle > 0 && length%2 == 0 {
+		result = (result + numbers[middle-1]) / 2
+	}
+	return result
 }
 
 func dump(texts []string) string {

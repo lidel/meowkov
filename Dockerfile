@@ -15,4 +15,4 @@ USER meowkov
 RUN make build && \
     rm -rf /meowkov/Makefile /meowkov/.git
 
-CMD ["/meowkov/meowkov"]
+ENTRYPOINT ["/meowkov/meowkov"]
