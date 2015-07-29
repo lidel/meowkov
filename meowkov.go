@@ -51,7 +51,7 @@ const (
 )
 
 var (
-	corpus  redis.Conn
+	pool    *redis.Pool
 	config  MeowkovConfig
 	version string
 
@@ -73,12 +73,22 @@ func loadConfig() {
 	fmt.Printf("%#v\n", config)
 
 	// init Redis
-	rdb, err := redis.Dial("tcp", redisAddr())
-	if err != nil {
-		redisErr(err)
-		os.Exit(1)
+	redisAddr := getRedisAddr()
+	pool = &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", redisAddr)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
 	}
-	corpus = rdb
 
 	// irc server validation
 	_, _, err = net.SplitHostPort(config.IrcServer)
@@ -164,7 +174,7 @@ func ircLoop() {
 	con.Loop()
 }
 
-func redisAddr() string {
+func getRedisAddr() string {
 	redisHost, redisPort, err := net.SplitHostPort(config.RedisServer)
 	check(err)
 
@@ -242,6 +252,9 @@ func addToCorpus(seeds [][]string) {
 		cut := len(seed) - 1
 		key := corpusKey(strings.Join(seed[:cut], separator))
 		value := seed[cut:][0]
+
+		corpus := pool.Get()
+		defer corpus.Close()
 
 		_, err := corpus.Do("SADD", key, value)
 		if err != nil {
@@ -357,6 +370,8 @@ func randomBranch(words []string) string {
 }
 
 func randomWord(key string) string {
+	corpus := pool.Get()
+	defer corpus.Close()
 	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
 	if err == nil || err == redis.ErrNil {
 		return value
@@ -366,6 +381,8 @@ func randomWord(key string) string {
 }
 
 func randomChain() []string {
+	corpus := pool.Get()
+	defer corpus.Close()
 	value, err := redis.String(corpus.Do("RANDOMKEY"))
 	if err != nil && err != redis.ErrNil {
 		redisErr(err)
@@ -375,6 +392,7 @@ func randomChain() []string {
 
 func artificialSeed(input []string) [][]string {
 	var result [][]string
+	/* TODO
 	for _, word := range input {
 		if word == stop {
 			break
@@ -395,6 +413,10 @@ func artificialSeed(input []string) [][]string {
 		fmt.Println("artificialSeed.input=", dump(input))
 		fmt.Println("artificialSeed.mutations=", fmt.Sprint(result))
 	}
+	*/
+
+	// crude workaround for now
+	result = createSeed(append(input, append(randomChain(), input...)...))
 
 	return result
 }
