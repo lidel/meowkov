@@ -35,5 +35,8 @@
     ":|",
     "kek",
     "( ͡° ͜ʖ ͡°)"
-  ]
+  ],
+
+  "DontEndWith": ["i","w","z","na","or","za","o","do","in","to","a","the","dla"],
+  "Blacklist": []
 }

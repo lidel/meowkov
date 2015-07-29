@@ -39,7 +39,9 @@ type MeowkovConfig struct {
 	SmileyChance      float64
 	WordsPerMinute    int64
 
-	Smileys []string
+	Smileys     []string
+	DontEndWith []string
+	Blacklist   []string
 }
 
 const (
@@ -102,6 +104,9 @@ func importLoop() {
 	fi, err := os.Stdin.Stat()
 	check(err)
 	if fi.Mode()&os.ModeNamedPipe == 0 {
+		f := []string{"one", "i", "poop", "w", "shit", "poop"}
+		f = removeBlacklistedWords(f)
+		fmt.Println(fmt.Sprint(f))
 		fmt.Fprintln(os.Stderr, "no input: please pipe some data in and try again")
 		os.Exit(1)
 	} else {
@@ -343,11 +348,46 @@ func randomChain(words []string) string {
 			break
 		}
 	}
+
+	response = removeBlacklistedWords(response)
+
 	if config.Debug {
 		fmt.Println("\trandomChain:\t" + dump(response))
 	}
 
 	return strings.Join(response, " ")
+}
+
+func removeBlacklistedWords(words []string) []string {
+	data := make([]string, len(words))
+	end := 0
+
+Blacklist:
+	for _, word := range words {
+		for _, bad := range config.Blacklist {
+			if word == bad {
+				continue Blacklist
+			}
+		}
+		data[end] = word
+		end++
+	}
+	words = data[:end]
+
+DontEndWith:
+	for {
+		length := len(words)
+		for remove := range config.DontEndWith {
+			if length > 0 && words[length-1] == config.DontEndWith[remove] {
+				words = words[:length-1]
+				continue DontEndWith // ending changed, restart loop
+			}
+
+		}
+		break
+	}
+
+	return words
 }
 
 func randomWord(key string) string {

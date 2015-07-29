@@ -36,7 +36,7 @@ docker-clean: docker-stop
 	$(D) ps -f 'name=meowkov*' -q -a | xargs -r docker rm
 	$(D) images -f 'label=meowkov' -q | xargs -r docker rmi
 docker-logs:
-	$(D) logs -f meowkov_irc
+	$(D) logs --tail=100 -f meowkov_irc
 docker-corpus-import: docker-start
 	$(D) run -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -i --rm meowkov -import=true
 
