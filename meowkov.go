@@ -93,6 +93,7 @@ func loadConfig() {
 func main() {
 	importMode := flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
 	loadConfig()
+
 	if *importMode {
 		importLoop()
 	} else {
@@ -104,9 +105,6 @@ func importLoop() {
 	fi, err := os.Stdin.Stat()
 	check(err)
 	if fi.Mode()&os.ModeNamedPipe == 0 {
-		f := []string{"one", "i", "poop", "w", "shit", "poop"}
-		f = removeBlacklistedWords(f)
-		fmt.Println(fmt.Sprint(f))
 		fmt.Fprintln(os.Stderr, "no input: please pipe some data in and try again")
 		os.Exit(1)
 	} else {
@@ -198,13 +196,13 @@ func typingDelay(text string) {
 
 func processInput(message string) ([][]string, float64) {
 	words, chattiness := parseInput(message)
-	groups := generateChainGroups(words)
+	seed := createSeed(words)
 
 	if int(config.ChainLength) < len(words) {
-		addToCorpus(groups)
+		addToCorpus(seed)
 	}
 
-	return groups, chattiness
+	return seed, chattiness
 }
 
 func parseInput(message string) ([]string, float64) {
@@ -234,16 +232,16 @@ func parseInput(message string) ([]string, float64) {
 	return append(words, stop), chattiness
 }
 
-func addToCorpus(groups [][]string) {
-	for i, group := range groups {
+func addToCorpus(seeds [][]string) {
+	for i, seed := range seeds {
 
 		if config.Debug {
-			fmt.Println("group  #" + fmt.Sprint(i) + ":\t" + dump(group))
+			fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
 		}
 
-		cut := len(group) - 1
-		key := corpusKey(strings.Join(group[:cut], separator))
-		value := group[cut:][0]
+		cut := len(seed) - 1
+		key := corpusKey(strings.Join(seed[:cut], separator))
+		value := seed[cut:][0]
 
 		_, err := corpus.Do("SADD", key, value)
 		if err != nil {
@@ -269,51 +267,51 @@ func corpusKey(key string) string {
 	return key
 }
 
-func generateChainGroups(words []string) [][]string {
+// [1 2 3 4 \x01] → [[1 2 3][2 3 4][3 4 \x01]]
+func createSeed(words []string) [][]string {
 	var (
-		groups [][]string
+		seeds  [][]string
 		length = len(words)
-		max    = int(config.ChainLength)
+		min    = int(config.ChainLength)
 	)
 
-	for i := range words {
-		end := i + max + 1
+	if length > min {
+		for i := range words {
+			end := i + min + 1
 
-		if end > length {
-			end = length
-		}
-		if end-i <= max {
-			break
-		}
+			if end > length {
+				end = length
+			}
+			if end-i <= min {
+				break
+			}
 
-		groups = append(groups, words[i:end])
+			seeds = append(seeds, words[i:end])
+		}
+	} else {
+		// when seed is smaller than chain size, markov is not effective
+		seeds = artificialSeed(words)
 	}
 
-	return groups
+	return seeds
 }
 
-func generateResponse(groups [][]string) string {
+func generateResponse(seeds [][]string) string {
 	var (
 		responses []string
 		response  string
 	)
 
-	if len(groups) < int(config.ChainLength) {
-		// when seed is smaller than chain size, markov is not effective
-		// so random one is better than nothing
-		groups = randomSeed(4)
-	}
-
-	for _, group := range groups {
+	for _, seed := range seeds {
 		for i := 0; i < int(config.ChainsToTry); i++ {
-			responses = append(responses, randomChain(group))
+			responses = append(responses, randomBranch(seed))
 		}
 	}
 
 	responses = normalizeResponseChains(responses)
 
 	if config.Debug {
-		fmt.Println("responses:\t" + dump(responses))
+		fmt.Println("Found " + fmt.Sprint(len(responses)) + " potential responses:\n" + dump(responses))
 	}
 
 	count := len(responses)
@@ -332,7 +330,7 @@ func generateResponse(groups [][]string) string {
 	return response
 }
 
-func randomChain(words []string) string {
+func randomBranch(words []string) string {
 	chain := words[:config.ChainLength]
 
 	chainKey := strings.Join(chain, separator)
@@ -352,10 +350,66 @@ func randomChain(words []string) string {
 	response = removeBlacklistedWords(response)
 
 	if config.Debug {
-		fmt.Println("\trandomChain:\t" + dump(response))
+		//fmt.Println("\trandomChain:\t" + dump(response))
 	}
 
 	return strings.Join(response, " ")
+}
+
+func randomWord(key string) string {
+	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
+	if err == nil || err == redis.ErrNil {
+		return value
+	}
+	redisErr(err)
+	return stop
+}
+
+func randomChain() []string {
+	value, err := redis.String(corpus.Do("RANDOMKEY"))
+	if err != nil && err != redis.ErrNil {
+		redisErr(err)
+	}
+	return strings.Split(value, separator)
+}
+
+func artificialSeed(input []string) [][]string {
+	var result [][]string
+	for _, word := range input {
+		if word == stop {
+			break
+		}
+		for i := 0; i < int(config.ChainsToTry); i++ {
+			for _, mutation := range createSeed(mutateChain(word, randomChain())) {
+				result = append(result, mutation)
+			}
+
+		}
+	}
+
+	if len(result) == 0 { // fallback to full random
+		result = createSeed(randomChain())
+	}
+
+	if config.Debug {
+		fmt.Println("artificialSeed.input=", dump(input))
+		fmt.Println("artificialSeed.mutations=", fmt.Sprint(result))
+	}
+
+	return result
+}
+
+// (A, [1 2]) → [A 1 A 2 A]
+func mutateChain(word string, chain []string) []string {
+	mutation := []string{word}
+	for _, item := range chain {
+		mutation = append(mutation, []string{item, word}...)
+	}
+	return mutation
+}
+
+func randomSmiley() string {
+	return config.Smileys[rand.Intn(len(config.Smileys))]
 }
 
 func removeBlacklistedWords(words []string) []string {
@@ -388,34 +442,6 @@ DontEndWith:
 	}
 
 	return words
-}
-
-func randomWord(key string) string {
-	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
-	if err == nil || err == redis.ErrNil {
-		return value
-	}
-	redisErr(err)
-	return stop
-}
-
-func randomSeed(times int) [][]string {
-	var seed [][]string
-	for i := 0; i < times; i++ {
-		value, err := redis.String(corpus.Do("RANDOMKEY"))
-		if err != nil && err != redis.ErrNil {
-			redisErr(err)
-			continue
-		}
-		chainKey := strings.Split(value, separator)
-		seed = append(seed, chainKey)
-	}
-
-	return seed
-}
-
-func randomSmiley() string {
-	return config.Smileys[rand.Intn(len(config.Smileys))]
 }
 
 func normalizeResponseChains(texts []string) []string {
@@ -454,7 +480,7 @@ func normalizeResponseChains(texts []string) []string {
 		}
 	}
 	if config.Debug {
-		fmt.Println("Discarded responses shorter than median of " + fmt.Sprint(threshold) + " characters")
+		fmt.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
 	}
 
 	return result

@@ -6,7 +6,7 @@
 To start your own instance:
 
 1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
-2. Copy `meowkov.conf.template` to `meowkov.conf` and change `BotName` and `RoomName`
+2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `RoomName`
 3. Run `make docker-rebuild` to buid (in foreground) and run (in background) via Docker container
 4. That is all: meowkov bot will join specified room after a few seconds
 
@@ -20,7 +20,7 @@ To start your own instance:
 
 ## Populating the Corpus
 
-The bot is as good as its corpus.
+The bot is as good as its corpus.    
 Running it with empty one will not produce any meaningful results for a long time.    
 It is a good idea to bootstrap the corpus using old IRC logs, news articles, etc.
 
@@ -32,7 +32,7 @@ echo "line one\nline two with more text" | make docker-corpus-import
 One may also want to generate input on a different machine, for example from weechat logs:
 
 ```
-find ~/.weechat/logs -name "*#foo*" -type f -exec sh -c "grep -vP '^.+\t(</-|-->|--|.*\*)\t' {} | cut -f3 -d$'\t'" \;   > corpus.txt 
+find ~/.weechat/logs -name "*#foo*" -type f -exec sh -c "grep -vP '^.+\t(</-|-->|--|.*\*)\t' {} | cut -f3 -d$'\t'" \; > corpus.txt
 ```
 Then transfer the file to the box with meowkov and perform import there:
 ```
