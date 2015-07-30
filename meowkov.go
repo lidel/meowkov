@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -319,20 +320,19 @@ func generateResponse(words []string, seeds [][]string) string {
 		seeds = artificialSeed(words)
 	}
 
-	done := make(chan bool)
+	var wg sync.WaitGroup
 	for _, seed := range seeds {
 		for i := 0; i < int(config.ChainsToTry); i++ {
+			wg.Add(1)
 			go func(seed []string, i int) {
+				defer wg.Done()
 				if response := randomBranch(seed); notPresent(response, seed) {
 					responses = append(responses, response)
 				}
-				done <- true
 			}(seed, i)
 		}
 	}
-	for i := len(seeds) * int(config.ChainsToTry); i > 0; i-- {
-		<-done
-	}
+	wg.Wait()
 
 	responses = normalizeResponseChains(responses)
 
@@ -421,23 +421,22 @@ func artificialSeed(input []string) [][]string {
 		input = randomChain()[:1]
 	}
 
-	done := make(chan bool)
+	var wg sync.WaitGroup
 	for _, word := range input {
 		if word == stop {
 			break
 		}
 		for i := 0; i < int(config.ChainsToTry); i++ {
+			wg.Add(1)
 			go func(word string, i int) {
+				defer wg.Done()
 				for _, mutation := range createSeed(mutateChain(word, randomChain())) {
 					result = append(result, mutation)
 				}
-				done <- true
 			}(word, i)
 		}
-		for i := int(config.ChainsToTry); i > 0; i-- {
-			<-done
-		}
 	}
+	wg.Wait()
 
 	if config.Debug {
 		fmt.Println("artificialSeed.input=", dump(input))
