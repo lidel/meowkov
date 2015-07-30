@@ -262,34 +262,40 @@ func parseInput(message string) ([]string, float64) {
 }
 
 func addToCorpus(seeds [][]string) {
+	var wg sync.WaitGroup
+	wg.Add(len(seeds))
 	for i, seed := range seeds {
+		go func(seed []string, i int) {
+			defer wg.Done()
 
-		if config.Debug {
-			fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
-		}
+			if config.Debug {
+				fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
+			}
 
-		cut := len(seed) - 1
-		key := corpusKey(strings.Join(seed[:cut], separator))
-		value := seed[cut:][0]
+			cut := len(seed) - 1
+			key := corpusKey(strings.Join(seed[:cut], separator))
+			value := seed[cut:][0]
 
-		corpus := pool.Get()
-		defer corpus.Close()
+			corpus := pool.Get()
+			defer corpus.Close()
 
-		_, err := corpus.Do("SADD", key, value)
-		if err != nil {
-			redisErr(err)
-			continue
-		}
-
-		if config.Debug {
-			chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
+			_, err := corpus.Do("SADD", key, value)
 			if err != nil {
 				redisErr(err)
-				continue
+				return
 			}
-			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
-		}
+
+			if config.Debug {
+				chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
+				if err != nil {
+					redisErr(err)
+					return
+				}
+				fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
+			}
+		}(seed, i)
 	}
+	wg.Wait()
 }
 
 func corpusKey(key string) string {
