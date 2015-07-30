@@ -158,10 +158,10 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		seed, chattiness := processInput(e.Message())
+		words, seeds, chattiness := processInput(e.Message())
 
 		if chattiness > rand.Float64() {
-			response := generateResponse(seed)
+			response := generateResponse(words, seeds)
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
@@ -195,6 +195,10 @@ func isEmpty(text string) bool {
 	return len(text) == 0 || text == stop
 }
 
+func chainEmpty(texts []string) bool {
+	return len(texts) == 0 || (len(texts) == 1 && texts[0] == stop || texts[0] == "")
+}
+
 func typingDelay(text string) {
 	// https://en.wikipedia.org/wiki/Words_per_minute
 	typing := ((float64(len(text)) / 5) / float64(config.WordsPerMinute)) * 60
@@ -204,15 +208,13 @@ func typingDelay(text string) {
 	time.Sleep(time.Duration(typing) * time.Second)
 }
 
-func processInput(message string) ([][]string, float64) {
-	words, chattiness := parseInput(message)
-	seed := createSeed(words)
-
+func processInput(message string) (words []string, seed [][]string, chattiness float64) {
+	words, chattiness = parseInput(message)
+	seed = createSeed(words)
 	if int(config.ChainLength) < len(words) {
 		addToCorpus(seed)
 	}
-
-	return seed, chattiness
+	return
 }
 
 func parseInput(message string) ([]string, float64) {
@@ -288,36 +290,38 @@ func createSeed(words []string) [][]string {
 		min    = int(config.ChainLength)
 	)
 
-	if length > min {
-		for i := range words {
-			end := i + min + 1
+	for i := range words {
+		end := i + min + 1
 
-			if end > length {
-				end = length
-			}
-			if end-i <= min {
-				break
-			}
-
-			seeds = append(seeds, words[i:end])
+		if end > length {
+			end = length
 		}
-	} else {
-		// when seed is smaller than chain size, markov is not effective
-		seeds = artificialSeed(words)
+		if end-i <= min {
+			break
+		}
+
+		seeds = append(seeds, words[i:end])
 	}
 
 	return seeds
 }
 
-func generateResponse(seeds [][]string) string {
+func generateResponse(words []string, seeds [][]string) string {
 	var (
 		responses []string
 		response  string
 	)
 
+	// when seed is smaller than the chain size, markov is not effective
+	if len(words) <= int(config.ChainLength) {
+		seeds = artificialSeed(words)
+	}
+
 	for _, seed := range seeds {
 		for i := 0; i < int(config.ChainsToTry); i++ {
-			responses = append(responses, randomBranch(seed))
+			if response := randomBranch(seed); notPresent(response, seed) {
+				responses = append(responses, randomBranch(seed))
+			}
 		}
 	}
 
@@ -341,6 +345,17 @@ func generateResponse(seeds [][]string) string {
 	}
 
 	return response
+}
+
+func notPresent(item string, items []string) bool {
+	for _, oldItem := range items {
+		if item == oldItem {
+			return false
+		}
+
+	}
+	return true
+
 }
 
 func randomBranch(words []string) string {
@@ -392,7 +407,11 @@ func randomChain() []string {
 
 func artificialSeed(input []string) [][]string {
 	var result [][]string
-	/* TODO
+
+	if chainEmpty(input) {
+		input = randomChain()[:1]
+	}
+
 	for _, word := range input {
 		if word == stop {
 			break
@@ -405,18 +424,10 @@ func artificialSeed(input []string) [][]string {
 		}
 	}
 
-	if len(result) == 0 { // fallback to full random
-		result = createSeed(randomChain())
-	}
-
 	if config.Debug {
 		fmt.Println("artificialSeed.input=", dump(input))
 		fmt.Println("artificialSeed.mutations=", fmt.Sprint(result))
 	}
-	*/
-
-	// crude workaround for now
-	result = createSeed(append(input, append(randomChain(), input...)...))
 
 	return result
 }
