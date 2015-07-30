@@ -17,6 +17,9 @@ To start your own instance:
 - `make docker-start` starts already existing container
 - `make docker-logs` tails the output (runs in debug by default)
 - `make docker-clean` removes meowkov containers and a custom image
+- `echo "some text" | make docker-corpus-add` adds piped strings to the corpus
+- `echo "some text" | make docker-corpus-replace` replaces corpus with piped data
+  (destructive, remember to backup `data/dump.rpd` before executing this)
 
 ## Populating the Corpus
 
@@ -26,7 +29,7 @@ It is a good idea to bootstrap the corpus using old IRC logs, news articles, etc
 
 Text can be loaded into the corpus (which is backed by Redis) like this:
 ```
-echo "line one\nline two with more text" | make docker-corpus-import
+echo "line one\nline two with more text" | make docker-corpus-add
 ```
 
 One may also want to generate input on a different machine, for example from weechat logs:
@@ -36,7 +39,7 @@ find ~/.weechat/logs -name "*#foo*" -type f -exec sh -c "grep -vP '^.+\t(</-|-->
 ```
 Then transfer the file to the box with meowkov and perform import there:
 ```
-cat corpus.txt | make docker-corpus-import
+cat corpus.txt | make docker-corpus-add
 ```
 
 Changes are instantaneous: corpus import can be performed while bot is running, no restart is required.    

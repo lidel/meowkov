@@ -61,8 +61,12 @@ var (
 	httpLink     *regexp.Regexp
 )
 
-func loadConfig() {
-	confPath := flag.String("c", "meowkov.conf", "path to the config file")
+func loadConfig() (bool, bool) {
+	var (
+		confPath    = flag.String("c", "meowkov.conf", "path to the config file")
+		justImport  = flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
+		purgeCorpus = flag.Bool("purge", false, "If true, removes old corpus before importing anything")
+	)
 	flag.Parse()
 
 	fmt.Println("Loading config file: " + *confPath)
@@ -103,20 +107,21 @@ func loadConfig() {
 	ownMention = regexp.MustCompile("(?i)" + config.BotName + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("(?i)^\\S+[:,]+\\s+")
 	httpLink = regexp.MustCompile("^http(s)?://[^/]")
+
+	return *justImport, *purgeCorpus
 }
 
 func main() {
-	importMode := flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
-	loadConfig()
+	justImport, mode := loadConfig()
 
-	if *importMode {
-		importLoop()
+	if justImport {
+		importLoop(mode)
 	} else {
 		ircLoop()
 	}
 }
 
-func importLoop() {
+func importLoop(newCorpus bool) {
 	fi, err := os.Stdin.Stat()
 	check(err)
 	if fi.Mode()&os.ModeNamedPipe == 0 {
@@ -124,6 +129,10 @@ func importLoop() {
 		os.Exit(1)
 	} else {
 		config.Debug = false // improve load performance
+		if newCorpus {
+			fmt.Println("PURGE: removing old corpus")
+			purgeCorpus()
+		}
 		fmt.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
 		reader := bufio.NewReader(os.Stdin)
 		i := 0
@@ -417,6 +426,16 @@ func randomChain() []string {
 		redisErr(err)
 	}
 	return strings.Split(value, separator)
+}
+
+func purgeCorpus() {
+	corpus := pool.Get()
+	defer corpus.Close()
+	_, err := corpus.Do("FLUSHDB")
+	if err != nil {
+		redisErr(err)
+		panic(err)
+	}
 }
 
 func artificialSeed(input []string) [][]string {
