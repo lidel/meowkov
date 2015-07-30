@@ -75,8 +75,10 @@ func loadConfig() {
 	// init Redis
 	redisAddr := getRedisAddr()
 	pool = &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
+		MaxIdle:     200,
+		MaxActive:   1000,
+		Wait:        true,
+		IdleTimeout: 3 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", redisAddr)
 			if err != nil {
@@ -317,12 +319,19 @@ func generateResponse(words []string, seeds [][]string) string {
 		seeds = artificialSeed(words)
 	}
 
+	done := make(chan bool)
 	for _, seed := range seeds {
 		for i := 0; i < int(config.ChainsToTry); i++ {
-			if response := randomBranch(seed); notPresent(response, seed) {
-				responses = append(responses, randomBranch(seed))
-			}
+			go func(seed []string, i int) {
+				if response := randomBranch(seed); notPresent(response, seed) {
+					responses = append(responses, response)
+				}
+				done <- true
+			}(seed, i)
 		}
+	}
+	for i := len(seeds) * int(config.ChainsToTry); i > 0; i-- {
+		<-done
 	}
 
 	responses = normalizeResponseChains(responses)
@@ -412,15 +421,21 @@ func artificialSeed(input []string) [][]string {
 		input = randomChain()[:1]
 	}
 
+	done := make(chan bool)
 	for _, word := range input {
 		if word == stop {
 			break
 		}
 		for i := 0; i < int(config.ChainsToTry); i++ {
-			for _, mutation := range createSeed(mutateChain(word, randomChain())) {
-				result = append(result, mutation)
-			}
-
+			go func(word string, i int) {
+				for _, mutation := range createSeed(mutateChain(word, randomChain())) {
+					result = append(result, mutation)
+				}
+				done <- true
+			}(word, i)
+		}
+		for i := int(config.ChainsToTry); i > 0; i-- {
+			<-done
 		}
 	}
 
