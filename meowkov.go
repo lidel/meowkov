@@ -58,6 +58,7 @@ var (
 
 	ownMention   *regexp.Regexp
 	otherMention *regexp.Regexp
+	httpLink     *regexp.Regexp
 )
 
 func loadConfig() {
@@ -99,8 +100,9 @@ func loadConfig() {
 
 	// other inits
 	rand.Seed(time.Now().Unix())
-	ownMention = regexp.MustCompile(config.BotName + "_*[:,]*\\s*")
-	otherMention = regexp.MustCompile("^\\S+[:,]+\\s+")
+	ownMention = regexp.MustCompile("(?i)" + config.BotName + "_*[:,]*\\s*")
+	otherMention = regexp.MustCompile("(?i)^\\S+[:,]+\\s+")
+	httpLink = regexp.MustCompile("^http(s)?://[^/]")
 }
 
 func main() {
@@ -222,7 +224,6 @@ func processInput(message string) (words []string, seed [][]string, chattiness f
 
 func parseInput(message string) ([]string, float64) {
 	chattiness := config.DefaultChattiness
-	message = strings.ToLower(message)
 
 	if ownMention.MatchString(message) {
 		message = ownMention.ReplaceAllString(message, "")
@@ -240,6 +241,10 @@ func parseInput(message string) ([]string, float64) {
 	for _, token := range tokens {
 		token = strings.TrimSpace(token)
 		if len(token) > 0 {
+			// do not lowercase URLs
+			if !httpLink.MatchString(token) {
+				token = strings.ToLower(token)
+			}
 			words = append(words, token)
 		}
 	}
