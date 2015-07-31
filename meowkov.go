@@ -79,14 +79,14 @@ func loadConfig() (bool, bool) {
 	fmt.Printf("%#v\n", config)
 
 	// init Redis
-	redisAddr := getRedisAddr()
+	redisServer := getRedisServer()
 	pool = &redis.Pool{
 		MaxIdle:     200,
 		MaxActive:   1000,
 		Wait:        true,
-		IdleTimeout: 3 * time.Second,
+		IdleTimeout: 10 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", redisAddr)
+			c, err := redis.Dial("tcp", redisServer)
 			if err != nil {
 				return nil, err
 			}
@@ -188,7 +188,7 @@ func ircLoop() {
 	con.Loop()
 }
 
-func getRedisAddr() string {
+func getRedisServer() string {
 	redisHost, redisPort, err := net.SplitHostPort(config.RedisServer)
 	check(err)
 
@@ -209,7 +209,7 @@ func isEmpty(text string) bool {
 	return len(text) == 0 || text == stop
 }
 
-func chainEmpty(texts []string) bool {
+func isChainEmpty(texts []string) bool {
 	return len(texts) == 0 || (len(texts) == 1 && texts[0] == stop || texts[0] == "")
 }
 
@@ -447,7 +447,7 @@ func purgeCorpus() {
 func artificialSeed(input []string) [][]string {
 	var result [][]string
 
-	if chainEmpty(input) {
+	if isChainEmpty(input) {
 		input = randomChain()[:1]
 	}
 

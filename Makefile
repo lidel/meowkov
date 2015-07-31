@@ -11,8 +11,10 @@ print-%: ; @echo $*=$($*) # eg. make print-DEPS
 
 all: lint build
 
-build: deps
+build: deps test
 	$(GO) build -ldflags $(LDFLAGS)  meowkov.go
+test:
+	$(GO) test
 lint:
 	@$(GOLINT)
 deps:
