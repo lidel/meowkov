@@ -13,6 +13,7 @@
   "ChainLength": 2,
   "MaxChainLength": 30,
   "ChainsToTry": 64,
+  "MinResponsePool": 5,
 
   "DefaultChattiness": 0.05,
   "SmileyChance": 0.5,

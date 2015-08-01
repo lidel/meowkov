@@ -32,9 +32,10 @@ type MeowkovConfig struct {
 	RedisServer      string
 	CorpusPerChannel bool
 
-	ChainLength    int64
-	MaxChainLength int64
-	ChainsToTry    int64
+	ChainLength     int64
+	MaxChainLength  int64
+	ChainsToTry     int64
+	MinResponsePool int64
 
 	DefaultChattiness float64
 	SmileyChance      float64
@@ -81,10 +82,10 @@ func loadConfig() (bool, bool) {
 	// init Redis
 	redisServer := getRedisServer()
 	pool = &redis.Pool{
-		MaxIdle:     200,
-		MaxActive:   1000,
+		MaxIdle:     3,
+		MaxActive:   100,
 		Wait:        true,
-		IdleTimeout: 10 * time.Second,
+		IdleTimeout: 1 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", redisServer)
 			if err != nil {
@@ -113,6 +114,7 @@ func loadConfig() (bool, bool) {
 
 func main() {
 	justImport, mode := loadConfig()
+	defer pool.Close()
 
 	if justImport {
 		importLoop(mode)
@@ -175,7 +177,7 @@ func ircLoop() {
 		words, seeds, chattiness := processInput(e.Message())
 
 		if chattiness > rand.Float64() {
-			response := generateResponse(words, seeds)
+			response := generateResponse(words, seeds, int(config.ChainsToTry))
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
@@ -224,7 +226,7 @@ func typingDelay(text string) {
 
 func processInput(message string) (words []string, seed [][]string, chattiness float64) {
 	words, chattiness = parseInput(message)
-	seed = createSeed(words)
+	seed = createSeeds(words)
 	if int(config.ChainLength) < len(words) {
 		addToCorpus(seed)
 	}
@@ -266,6 +268,8 @@ func addToCorpus(seeds [][]string) {
 	wg.Add(len(seeds))
 	for i, seed := range seeds {
 		go func(seed []string, i int) {
+			corpus := pool.Get()
+			defer corpus.Close()
 			defer wg.Done()
 
 			if config.Debug {
@@ -275,9 +279,6 @@ func addToCorpus(seeds [][]string) {
 			cut := len(seed) - 1
 			key := corpusKey(strings.Join(seed[:cut], separator))
 			value := seed[cut:][0]
-
-			corpus := pool.Get()
-			defer corpus.Close()
 
 			_, err := corpus.Do("SADD", key, value)
 			if err != nil {
@@ -306,7 +307,7 @@ func corpusKey(key string) string {
 }
 
 // [1 2 3 4 \x01] → [[1 2 3][2 3 4][3 4 \x01]]
-func createSeed(words []string) [][]string {
+func createSeeds(words []string) [][]string {
 	var (
 		seeds  [][]string
 		length = len(words)
@@ -329,15 +330,14 @@ func createSeed(words []string) [][]string {
 	return seeds
 }
 
-func generateResponse(words []string, seeds [][]string) string {
+func generateResponse(input []string, seeds [][]string, try int) string {
 	var (
 		responses []string
 		response  string
 	)
 
-	// when seed is smaller than the chain size, markov is not effective
-	if len(words) <= int(config.ChainLength) {
-		seeds = artificialSeed(words)
+	if config.Debug {
+		fmt.Println("Generating response for input: " + dump(input))
 	}
 
 	var wg sync.WaitGroup
@@ -361,16 +361,19 @@ func generateResponse(words []string, seeds [][]string) string {
 	}
 
 	count := len(responses)
-	if count > 1 {
+	if count >= int(config.MinResponsePool) {
 		response = responses[rand.Intn(count)]
-	} else {
-		response = stop
-	}
-
-	if isEmpty(response) {
-		response = randomSmiley()
-	} else if config.SmileyChance > rand.Float64() {
 		response = response + " " + randomSmiley()
+	} else if try > 0 {
+		try--
+		power := int(config.ChainsToTry) - try
+		if config.Debug {
+			fmt.Println("Pool of responses is too small, trying again with artificialSeed")
+		}
+		seeds = artificialSeed(input, power)
+		response = generateResponse(input, seeds, try)
+	} else {
+		response = randomSmiley()
 	}
 
 	return response
@@ -444,7 +447,7 @@ func purgeCorpus() {
 	}
 }
 
-func artificialSeed(input []string) [][]string {
+func artificialSeed(input []string, power int) [][]string {
 	var result [][]string
 
 	if isChainEmpty(input) {
@@ -456,11 +459,11 @@ func artificialSeed(input []string) [][]string {
 		if word == stop {
 			break
 		}
-		for i := 0; i < int(config.ChainsToTry); i++ {
+		for i := 0; i < power; i++ {
 			wg.Add(1)
 			go func(word string, i int) {
 				defer wg.Done()
-				for _, mutation := range createSeed(mutateChain(word, randomChain())) {
+				for _, mutation := range createSeeds(mutateChain(word, randomChain())) {
 					result = append(result, mutation)
 				}
 			}(word, i)
@@ -469,8 +472,7 @@ func artificialSeed(input []string) [][]string {
 	wg.Wait()
 
 	if config.Debug {
-		fmt.Println("artificialSeed.input=", dump(input))
-		fmt.Println("artificialSeed.mutations=", fmt.Sprint(result))
+		fmt.Println("artificialSeed(", dump(input)+", "+fmt.Sprint(power)+")="+fmt.Sprint(result))
 	}
 
 	return result
