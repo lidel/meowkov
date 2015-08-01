@@ -32,10 +32,11 @@ type MeowkovConfig struct {
 	RedisServer      string
 	CorpusPerChannel bool
 
-	ChainLength     int64
-	MaxChainLength  int64
-	ChainsToTry     int64
-	MinResponsePool int64
+	ChainLength      int64
+	MaxChainLength   int64
+	ChainsToTry      int64
+	MinResponsePool  int64
+	MaxResponseTries int64
 
 	DefaultChattiness float64
 	SmileyChance      float64
@@ -177,7 +178,7 @@ func ircLoop() {
 		words, seeds, chattiness := processInput(e.Message())
 
 		if chattiness > rand.Float64() {
-			response := generateResponse(words, seeds, int(config.ChainsToTry))
+			response := generateResponse(words, seeds, int(config.MaxResponseTries))
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
@@ -330,7 +331,7 @@ func createSeeds(words []string) [][]string {
 	return seeds
 }
 
-func generateResponse(input []string, seeds [][]string, try int) string {
+func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	var (
 		responses []string
 		response  string
@@ -364,14 +365,15 @@ func generateResponse(input []string, seeds [][]string, try int) string {
 	if count >= int(config.MinResponsePool) {
 		response = responses[rand.Intn(count)]
 		response = response + " " + randomSmiley()
-	} else if try > 0 {
-		try--
-		power := int(config.ChainsToTry) - try
+	} else if triesLeft > 0 {
+		triesLeft--
+		try := int(config.MaxResponseTries) - triesLeft
+		power := try * try * try * try
 		if config.Debug {
-			fmt.Println("Pool of responses is too small, trying again with artificialSeed")
+			fmt.Println("Pool of responses is too small, trying again with artificialSeed^" + fmt.Sprint(power))
 		}
 		seeds = artificialSeed(input, power)
-		response = generateResponse(input, seeds, try)
+		response = generateResponse(input, seeds, triesLeft)
 	} else {
 		response = randomSmiley()
 	}
@@ -471,9 +473,9 @@ func artificialSeed(input []string, power int) [][]string {
 	}
 	wg.Wait()
 
-	if config.Debug {
+	/*if config.Debug {
 		fmt.Println("artificialSeed(", dump(input)+", "+fmt.Sprint(power)+")="+fmt.Sprint(result))
-	}
+	}*/
 
 	return result
 }
