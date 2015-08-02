@@ -9,7 +9,8 @@ LDFLAGS  = "-X main.version $(GITHASH)"
 
 print-%: ; @echo $*=$($*) # eg. make print-DEPS
 
-all: lint build
+all: deps test lint build
+travis: deps test build
 
 build: deps test
 	$(GO) build -ldflags $(LDFLAGS)  meowkov.go
@@ -18,9 +19,9 @@ test:
 lint:
 	@$(GOLINT)
 deps:
-	 @echo $(DEPS) | xargs -n1 go get -v
+	@echo $(DEPS) | xargs -n1 go get -v
 updatedeps:
-	 @echo $(DEPS) | xargs -n1 go get -v -u
+	@echo $(DEPS) | xargs -n1 go get -v -u
 run:
 	./meowkov
 

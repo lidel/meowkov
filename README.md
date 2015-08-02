@@ -1,4 +1,6 @@
 # meowkov
+[![Build Status](https://travis-ci.org/lidel/meowkov.svg)](https://travis-ci.org/lidel/meowkov)
+
 [Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot (PoC exercise in [golang](http://golang.org/) and [Redis](http://redis.io/))
 
 ## Quick Start
