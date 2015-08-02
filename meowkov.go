@@ -398,8 +398,11 @@ func randomBranch(words []string) string {
 	chainKey := strings.Join(chain, separator)
 	response := []string{chain[0]}
 
+	corpus := pool.Get()
+	defer corpus.Close()
+
 	for i := 0; i < int(config.MaxChainLength); i++ {
-		word := randomWord(chainKey)
+		word := randomWord(chainKey, corpus)
 		if !isEmpty(word) {
 			chain = append(chain[1:], word)
 			response = append(response, chain[0])
@@ -418,9 +421,7 @@ func randomBranch(words []string) string {
 	return strings.Join(response, " ")
 }
 
-func randomWord(key string) string {
-	corpus := pool.Get()
-	defer corpus.Close()
+func randomWord(key string, corpus redis.Conn) string {
 	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
 	if err == nil || err == redis.ErrNil {
 		return value
@@ -429,9 +430,7 @@ func randomWord(key string) string {
 	return stop
 }
 
-func randomChain() []string {
-	corpus := pool.Get()
-	defer corpus.Close()
+func randomChain(corpus redis.Conn) []string {
 	value, err := redis.String(corpus.Do("RANDOMKEY"))
 	if err != nil && err != redis.ErrNil {
 		redisErr(err)
@@ -453,7 +452,9 @@ func artificialSeed(input []string, power int) [][]string {
 	var result [][]string
 
 	if isChainEmpty(input) {
-		input = randomChain()[:1]
+		corpus := pool.Get()
+		defer corpus.Close()
+		input = randomChain(corpus)[:1]
 	}
 
 	var wg sync.WaitGroup
@@ -464,8 +465,10 @@ func artificialSeed(input []string, power int) [][]string {
 		for i := 0; i < power; i++ {
 			wg.Add(1)
 			go func(word string, i int) {
+				corpus := pool.Get()
+				defer corpus.Close()
 				defer wg.Done()
-				for _, mutation := range createSeeds(mutateChain(word, randomChain())) {
+				for _, mutation := range createSeeds(mutateChain(word, randomChain(corpus))) {
 					result = append(result, mutation)
 				}
 			}(word, i)
