@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -105,6 +106,7 @@ func loadConfig() (bool, bool) {
 	check(err)
 
 	// other inits
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	rand.Seed(time.Now().Unix())
 	ownMention = regexp.MustCompile("(?i)" + config.BotName + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("(?i)^\\S+[:,]+\\s+")
@@ -138,6 +140,8 @@ func importLoop(newCorpus bool) {
 		}
 		fmt.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
 		reader := bufio.NewReader(os.Stdin)
+
+		var wg sync.WaitGroup
 		i := 0
 		for {
 			line, err := reader.ReadString('\n')
@@ -145,12 +149,17 @@ func importLoop(newCorpus bool) {
 				if err != io.EOF {
 					panic(err)
 				}
-				fmt.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
 				break
 			}
-			processInput(line)
 			i++
+			wg.Add(1)
+			go func(line string) {
+				defer wg.Done()
+				processInput(line)
+			}(line)
 		}
+		wg.Wait()
+		fmt.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
 	}
 
 }
@@ -265,39 +274,33 @@ func parseInput(message string) ([]string, float64) {
 }
 
 func addToCorpus(seeds [][]string) {
-	var wg sync.WaitGroup
-	wg.Add(len(seeds))
+	corpus := pool.Get()
+	defer corpus.Close()
 	for i, seed := range seeds {
-		go func(seed []string, i int) {
-			corpus := pool.Get()
-			defer corpus.Close()
-			defer wg.Done()
 
-			if config.Debug {
-				fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
-			}
+		if config.Debug {
+			fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
+		}
 
-			cut := len(seed) - 1
-			key := corpusKey(strings.Join(seed[:cut], separator))
-			value := seed[cut:][0]
+		cut := len(seed) - 1
+		key := corpusKey(strings.Join(seed[:cut], separator))
+		value := seed[cut:][0]
 
-			_, err := corpus.Do("SADD", key, value)
+		_, err := corpus.Do("SADD", key, value)
+		if err != nil {
+			redisErr(err)
+			return
+		}
+
+		if config.Debug {
+			chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
 			if err != nil {
 				redisErr(err)
 				return
 			}
-
-			if config.Debug {
-				chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
-				if err != nil {
-					redisErr(err)
-					return
-				}
-				fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
-			}
-		}(seed, i)
+			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
+		}
 	}
-	wg.Wait()
 }
 
 func corpusKey(key string) string {
@@ -343,15 +346,16 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 
 	var wg sync.WaitGroup
 	for _, seed := range seeds {
-		for i := 0; i < int(config.ChainsToTry); i++ {
-			wg.Add(1)
-			go func(seed []string, i int) {
-				defer wg.Done()
+		wg.Add(1)
+		go func(seed []string) {
+			defer wg.Done()
+			for i := 0; i < int(config.ChainsToTry); i++ {
 				if response := randomBranch(seed); notPresent(response, seed) {
 					responses = append(responses, response)
 				}
-			}(seed, i)
-		}
+				runtime.Gosched()
+			}
+		}(seed)
 	}
 	wg.Wait()
 
@@ -470,6 +474,7 @@ func artificialSeed(input []string, power int) [][]string {
 				defer wg.Done()
 				for _, mutation := range createSeeds(mutateChain(word, randomChain(corpus))) {
 					result = append(result, mutation)
+					runtime.Gosched()
 				}
 			}(word, i)
 		}
