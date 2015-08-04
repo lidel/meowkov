@@ -22,8 +22,7 @@ import (
 	"time"
 )
 
-// MeowkovConfig defines key names of the config file in JSON format
-type MeowkovConfig struct {
+var config struct {
 	BotName     string
 	RoomName    string
 	IrcServer   string
@@ -57,7 +56,6 @@ const (
 
 var (
 	pool    *redis.Pool
-	config  MeowkovConfig
 	version string
 
 	ownMention   *regexp.Regexp
@@ -342,13 +340,16 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	}
 
 	var wg sync.WaitGroup
+	var mtx sync.Mutex
 	for _, seed := range seeds {
 		wg.Add(1)
 		go func(seed []string) {
 			defer wg.Done()
 			for i := 0; i < int(config.ChainsToTry); i++ {
 				if response := randomBranch(seed); notPresent(response, seed) {
+					mtx.Lock()
 					responses = append(responses, response)
+					mtx.Unlock()
 				}
 				runtime.Gosched()
 			}
@@ -450,11 +451,12 @@ func artificialSeed(input []string, power int) [][]string {
 
 	if isChainEmpty(input) {
 		corpus := pool.Get()
-		defer corpus.Close()
 		input = randomChain(corpus)[:1]
+		corpus.Close()
 	}
 
 	var wg sync.WaitGroup
+	var mtx sync.Mutex
 	for _, word := range input {
 		if word == stop {
 			break
@@ -466,7 +468,9 @@ func artificialSeed(input []string, power int) [][]string {
 				defer corpus.Close()
 				defer wg.Done()
 				for _, mutation := range createSeeds(mutateChain(word, randomChain(corpus))) {
+					mtx.Lock()
 					result = append(result, mutation)
+					mtx.Unlock()
 					runtime.Gosched()
 				}
 			}(word, i)
