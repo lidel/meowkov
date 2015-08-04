@@ -10,6 +10,7 @@ import (
 	"github.com/thoj/go-ircevent"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -72,14 +73,14 @@ func loadConfig() (bool, bool) {
 	)
 	flag.Parse()
 
-	fmt.Println("Loading config file: " + *confPath)
+	log.Println("Loading config file: " + *confPath)
 
 	jsonData, err := ioutil.ReadFile(*confPath)
 	check(err)
 	err = json.Unmarshal(jsonData, &config)
 	check(err)
 
-	fmt.Printf("%#v\n", config)
+	log.Printf("%#v\n", config)
 
 	// init Redis
 	redisServer := getRedisServer()
@@ -130,15 +131,14 @@ func importLoop(newCorpus bool) {
 	fi, err := os.Stdin.Stat()
 	check(err)
 	if fi.Mode()&os.ModeNamedPipe == 0 {
-		fmt.Fprintln(os.Stderr, "no input: please pipe some data in and try again")
-		os.Exit(1)
+		log.Panicln("no input: please pipe some data in and try again")
 	} else {
 		config.Debug = false // improve load performance
 		if newCorpus {
-			fmt.Println("PURGE: removing old corpus")
+			log.Println("PURGE: removing old corpus")
 			purgeCorpus()
 		}
-		fmt.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
+		log.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
 		reader := bufio.NewReader(os.Stdin)
 
 		var wg sync.WaitGroup
@@ -159,7 +159,7 @@ func importLoop(newCorpus bool) {
 			}(line)
 		}
 		wg.Wait()
-		fmt.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
+		log.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
 	}
 
 }
@@ -210,7 +210,7 @@ func getRedisServer() string {
 	if host != "" {
 		redisHost = host
 		if config.Debug {
-			fmt.Println(env + "=" + fmt.Sprint(host))
+			log.Println("Using Dockerized Redis: " + env + "=" + fmt.Sprint(host))
 		}
 	}
 
@@ -229,7 +229,7 @@ func typingDelay(text string) {
 	// https://en.wikipedia.org/wiki/Words_per_minute
 	typing := ((float64(len(text)) / 5) / float64(config.WordsPerMinute)) * 60
 	if config.Debug {
-		fmt.Println("Typing delay: " + fmt.Sprint(typing))
+		log.Println("Typing delay: " + fmt.Sprint(typing))
 	}
 	time.Sleep(time.Duration(typing) * time.Second)
 }
@@ -278,10 +278,6 @@ func addToCorpus(seeds [][]string) {
 	defer corpus.Close()
 	for i, seed := range seeds {
 
-		if config.Debug {
-			fmt.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
-		}
-
 		cut := len(seed) - 1
 		key := corpusKey(strings.Join(seed[:cut], separator))
 		value := seed[cut:][0]
@@ -293,12 +289,13 @@ func addToCorpus(seeds [][]string) {
 		}
 
 		if config.Debug {
+			log.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
 			chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
 			if err != nil {
 				redisErr(err)
 				return
 			}
-			fmt.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
+			log.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
 		}
 	}
 }
@@ -341,7 +338,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	)
 
 	if config.Debug {
-		fmt.Println("Generating response for input: " + dump(input))
+		log.Println("Generating response for input: " + dump(input))
 	}
 
 	var wg sync.WaitGroup
@@ -362,7 +359,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	responses = normalizeResponseChains(responses)
 
 	if config.Debug {
-		fmt.Println("Found " + fmt.Sprint(len(responses)) + " potential responses:\n" + dump(responses))
+		log.Println("Found " + fmt.Sprint(len(responses)) + " potential responses:\n" + dump(responses))
 	}
 
 	count := len(responses)
@@ -374,7 +371,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 		try := int(config.MaxResponseTries) - triesLeft
 		power := try * try * try * try
 		if config.Debug {
-			fmt.Println("Pool of responses is too small, trying again with artificialSeed^" + fmt.Sprint(power))
+			log.Println("Pool of responses is too small, trying again with artificialSeed^" + fmt.Sprint(power))
 		}
 		seeds = artificialSeed(input, power)
 		response = generateResponse(input, seeds, triesLeft)
@@ -417,10 +414,6 @@ func randomBranch(words []string) string {
 	}
 
 	response = removeBlacklistedWords(response)
-
-	if config.Debug {
-		//fmt.Println("\trandomChain:\t" + dump(response))
-	}
 
 	return strings.Join(response, " ")
 }
@@ -482,7 +475,7 @@ func artificialSeed(input []string, power int) [][]string {
 	wg.Wait()
 
 	/*if config.Debug {
-		fmt.Println("artificialSeed(", dump(input)+", "+fmt.Sprint(power)+")="+fmt.Sprint(result))
+		log.Println("artificialSeed(", dump(input)+", "+fmt.Sprint(power)+")="+fmt.Sprint(result))
 	}*/
 
 	return result
@@ -568,9 +561,7 @@ func normalizeResponseChains(texts []string) []string {
 			result = append(result, text)
 		}
 	}
-	if config.Debug {
-		fmt.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
-	}
+	log.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
 
 	return result
 }
