@@ -5,7 +5,7 @@
   "IrcPassword": "",
   "UseTLS": true,
 
-  "Debug": true,
+  "Debug": false,
 
   "RedisServer": "localhost:6379",
   "CorpusPerChannel": false,

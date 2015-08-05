@@ -73,14 +73,18 @@ func loadConfig(file string) (bool, bool) {
 	)
 	flag.Parse()
 
-	log.Println("Loading config file: " + *confPath)
+	if config.Debug {
+		log.Println("Loading config file: " + *confPath)
+	}
 
 	jsonData, err := ioutil.ReadFile(*confPath)
 	check(err)
 	err = json.Unmarshal(jsonData, &config)
 	check(err)
 
-	log.Printf("%#v\n", config)
+	if config.Debug {
+		log.Printf("%#v\n", config)
+	}
 
 	// init Redis
 	redisServer := getRedisServer()
