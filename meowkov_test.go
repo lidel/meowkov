@@ -7,7 +7,8 @@ import (
 )
 
 func init() {
-	loadConfig()
+	// run tests against config template
+	loadConfig("meowkov.conf.template")
 }
 
 func TestParseInput_standard(t *testing.T) {

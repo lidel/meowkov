@@ -49,9 +49,10 @@ var config struct {
 }
 
 const (
-	stop      = "\x01"
-	separator = "\x02"
-	always    = 1.0
+	stop          = "\x01"
+	separator     = "\x02"
+	always        = 1.0
+	defaultConfig = "meowkov.conf"
 )
 
 var (
@@ -64,9 +65,9 @@ var (
 	textCruft    *regexp.Regexp
 )
 
-func loadConfig() (bool, bool) {
+func loadConfig(file string) (bool, bool) {
 	var (
-		confPath    = flag.String("c", "meowkov.conf", "path to the config file")
+		confPath    = flag.String("c", file, "path to the config file")
 		justImport  = flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
 		purgeCorpus = flag.Bool("purge", false, "If true, removes old corpus before importing anything")
 	)
@@ -121,7 +122,7 @@ func loadConfig() (bool, bool) {
 }
 
 func main() {
-	justImport, mode := loadConfig()
+	justImport, mode := loadConfig(defaultConfig)
 	defer pool.Close()
 
 	if justImport {
