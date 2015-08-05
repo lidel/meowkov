@@ -2,9 +2,8 @@ GO      ?= go
 GOLINT  ?= golint
 D       ?= docker
 GOPATH  := $(CURDIR)/_vendor:$(GOPATH)
-GITHASH  = "$(shell git rev-parse --short HEAD)"
+GITHASH  = $(shell git rev-parse --short HEAD)
 DEPS     = $(shell go list -f '{{ join .Deps  "\n"}}' . | grep github.com)
-LDFLAGS  = "-X main.version $(GITHASH)"
 
 
 print-%: ; @echo $*=$($*) # eg. make print-DEPS
@@ -13,7 +12,7 @@ all:    deps test lint build
 travis: deps test build
 
 build:  deps test
-	$(GO) build -ldflags $(LDFLAGS)  meowkov.go
+	$(GO) build -ldflags "-X main.version $(GITHASH)"  meowkov.go
 test:
 	$(GO) test
 lint:
