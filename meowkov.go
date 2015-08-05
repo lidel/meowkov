@@ -61,6 +61,7 @@ var (
 	ownMention   *regexp.Regexp
 	otherMention *regexp.Regexp
 	httpLink     *regexp.Regexp
+	textCruft    *regexp.Regexp
 )
 
 func loadConfig() (bool, bool) {
@@ -107,9 +108,14 @@ func loadConfig() (bool, bool) {
 	// other inits
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	rand.Seed(time.Now().Unix())
-	ownMention = regexp.MustCompile("(?i)" + config.BotName + "_*[:,]*\\s*")
+
+	// detect when own nick is mentioned or when message is directed to other person
+	ownMention = regexp.MustCompile("(?i)_*" + regexp.QuoteMeta(config.BotName) + "_*[:,]*\\s*")
 	otherMention = regexp.MustCompile("(?i)^\\S+[:,]+\\s+")
+	// detect HTTP(s) URLs
 	httpLink = regexp.MustCompile("^http(s)?://[^/]")
+	// remove single and double quotes, parentheses and ?!, leave semicolons and commas
+	textCruft = regexp.MustCompile(`^[\"'\(\[]*([^\"'\?!\)\]]+)[\"'\?!\)\]]*$`)
 
 	return *justImport, *purgeCorpus
 }
@@ -245,7 +251,6 @@ func parseInput(message string) ([]string, float64) {
 	chattiness := config.DefaultChattiness
 
 	if ownMention.MatchString(message) {
-		message = ownMention.ReplaceAllString(message, "")
 		chattiness = always
 	}
 	if otherMention.MatchString(message) {
@@ -258,17 +263,23 @@ func parseInput(message string) ([]string, float64) {
 	)
 
 	for _, token := range tokens {
-		token = strings.TrimSpace(token)
-		if len(token) > 0 {
-			// do not lowercase URLs
-			if !httpLink.MatchString(token) {
-				token = strings.ToLower(token)
-			}
-			words = append(words, token)
+		if word := normalizeWord(token); len(word) > 0 {
+			words = append(words, word)
 		}
 	}
 
 	return append(words, stop), chattiness
+}
+
+// normalizeWord removes various cruft from parsed text.
+// The goal is to make corpus more uniform (no duplicate clusters for multiple versions of the same word)
+func normalizeWord(word string) string {
+	word = strings.TrimSpace(word)
+	if !httpLink.MatchString(word) { // don't change URLs
+		word = strings.ToLower(word)
+		word = textCruft.ReplaceAllString(word, "$1")
+	}
+	return word
 }
 
 func addToCorpus(seeds [][]string) {
