@@ -13,7 +13,7 @@ func init() {
 
 func TestParseInput_standard(t *testing.T) {
 	test := func(input string, expected []string) {
-		words, _ := parseInput(input)
+		words := parseInput(input)
 		if !reflect.DeepEqual(words, expected) {
 			t.Error("parseInput words " + dump(words) + " do not match expected " + dump(expected))
 		}
@@ -116,4 +116,16 @@ func TestIsChainEmpty(t *testing.T) {
 	if problem {
 		t.Error("Empty slice should be empty ;-)")
 	}
+}
+
+func TestCalculateChattiness(t *testing.T) {
+	chattiness := calculateChattiness("foo bar one two", "nickname")
+	if chattiness != config.DefaultChattiness {
+		t.Error("calculateChattiness should return DefaultChattiness if bot's nickname is not mentioned")
+	}
+	chattiness = calculateChattiness("foo bar nickname one two", "nickname")
+	if chattiness != always {
+		t.Error("calculateChattiness should return 1.0 if nickname is mentioned")
+	}
+
 }

@@ -200,7 +200,8 @@ func ircLoop() {
 			channel = strings.Split(e.Raw[1:], "!")[0]
 		}
 
-		words, seeds, chattiness := processInput(e.Message(), !privateQuery)
+		words, seeds := processInput(e.Message(), !privateQuery)
+		chattiness := calculateChattiness(e.Message(), con.GetNick())
 
 		if privateQuery || chattiness > rand.Float64() {
 			response := generateResponse(words, seeds, int(config.MaxResponseTries))
@@ -213,6 +214,14 @@ func ircLoop() {
 	})
 
 	con.Loop()
+}
+
+func calculateChattiness(message string, currentBotNick string) float64 {
+	chattiness := config.DefaultChattiness
+	if strings.Contains(message, currentBotNick) || ownMention.MatchString(message) {
+		chattiness = always
+	}
+	return chattiness
 }
 
 func getRedisServer() string {
@@ -249,8 +258,8 @@ func typingDelay(text string) {
 	time.Sleep(time.Duration(typing) * time.Second)
 }
 
-func processInput(message string, learning bool) (words []string, seed [][]string, chattiness float64) {
-	words, chattiness = parseInput(message)
+func processInput(message string, learning bool) (words []string, seed [][]string) {
+	words = parseInput(message)
 	seed = createSeeds(words)
 	if learning && int(config.ChainLength) < len(words) {
 		addToCorpus(seed)
@@ -258,12 +267,7 @@ func processInput(message string, learning bool) (words []string, seed [][]strin
 	return
 }
 
-func parseInput(message string) ([]string, float64) {
-	chattiness := config.DefaultChattiness
-
-	if ownMention.MatchString(message) {
-		chattiness = always
-	}
+func parseInput(message string) []string {
 	if otherMention.MatchString(message) {
 		message = otherMention.ReplaceAllString(message, "")
 	}
@@ -279,7 +283,7 @@ func parseInput(message string) ([]string, float64) {
 		}
 	}
 
-	return append(words, stop), chattiness
+	return append(words, stop)
 }
 
 // normalizeWord removes various cruft from parsed text.
