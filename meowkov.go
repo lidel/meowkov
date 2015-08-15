@@ -150,9 +150,13 @@ func importLoop(newCorpus bool) {
 		log.Println("IMPORT: loading piped data into corpus at " + config.RedisServer)
 		reader := bufio.NewReader(os.Stdin)
 
-		var wg sync.WaitGroup
+		var (
+			wg  sync.WaitGroup
+			sem = make(chan int, runtime.NumCPU()*1000)
+		)
 		i := 0
 		for {
+			sem <- 1
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				if err != io.EOF {
@@ -165,9 +169,11 @@ func importLoop(newCorpus bool) {
 			go func(line string) {
 				defer wg.Done()
 				processInput(line, true)
+				<-sem
 			}(line)
 		}
 		wg.Wait()
+
 		log.Println("IMPORT finished, processed " + fmt.Sprint(i) + " lines")
 	}
 
