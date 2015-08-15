@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	// run tests against config template
+	// run against config template
 	loadConfig("meowkov.conf.template")
 }
 

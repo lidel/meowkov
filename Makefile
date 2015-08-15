@@ -27,7 +27,7 @@ run:
 # dockerized build & container run (including redis)
 docker-rebuild: docker-stop docker-clean
 	$(D) build -t meowkov .
-	$(D) run -d -v $(CURDIR)/data:/data --name meowkov_corpus redis
+	$(D) run -d -v $(CURDIR)/data:/data:rw --name meowkov_corpus redis
 	$(D) run -d -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -it --name meowkov_irc meowkov
 docker-start:
 	$(D) start meowkov_corpus

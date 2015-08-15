@@ -164,7 +164,7 @@ func importLoop(newCorpus bool) {
 			wg.Add(1)
 			go func(line string) {
 				defer wg.Done()
-				processInput(line)
+				processInput(line, true)
 			}(line)
 		}
 		wg.Wait()
@@ -193,15 +193,21 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		words, seeds, chattiness := processInput(e.Message())
+		channel := strings.Split(e.Raw, " ")[2]
+		privateQuery := channel == con.GetNick()
 
-		if chattiness > rand.Float64() {
+		if privateQuery {
+			channel = strings.Split(e.Raw[1:], "!")[0]
+		}
+
+		words, seeds, chattiness := processInput(e.Message(), !privateQuery)
+
+		if privateQuery || chattiness > rand.Float64() {
 			response := generateResponse(words, seeds, int(config.MaxResponseTries))
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
 			typingDelay(response)
-			channel := e.Arguments[0]
 			con.Privmsg(channel, response)
 		}
 	})
@@ -243,10 +249,10 @@ func typingDelay(text string) {
 	time.Sleep(time.Duration(typing) * time.Second)
 }
 
-func processInput(message string) (words []string, seed [][]string, chattiness float64) {
+func processInput(message string, learning bool) (words []string, seed [][]string, chattiness float64) {
 	words, chattiness = parseInput(message)
 	seed = createSeeds(words)
-	if int(config.ChainLength) < len(words) {
+	if learning && int(config.ChainLength) < len(words) {
 		addToCorpus(seed)
 	}
 	return

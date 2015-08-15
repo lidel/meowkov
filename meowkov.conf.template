@@ -39,6 +39,6 @@
     "( ͡° ͜ʖ ͡°)"
   ],
 
-  "DontEndWith": ["of","po","by","from","on","for","przez","with","i","w","z","na","or","za","o","do","in","to","a","the","dla"],
+  "DontEndWith": ["as","of","po","by","from","on","for","przez","with","i","w","z","na","or","za","o","do","in","to","a","the","dla"],
   "Blacklist": []
 }
