@@ -2,15 +2,12 @@ FROM golang:latest
 
 LABEL meowkov=yes
 
-RUN groupadd -g 1042 meowkov && \
-    useradd -r -u 1042 -g meowkov -s /sbin/nologin meowkov && \
-    mkdir /meowkov
-COPY Makefile meowkov.go /meowkov/
-COPY .git /meowkov/.git
-RUN  chown -R meowkov:meowkov /meowkov
-WORKDIR /meowkov
+RUN  mkdir /meowkov
+COPY Makefile meowkov.go .git /meowkov/
+RUN  chown -R nobody /meowkov
 
-USER meowkov
+WORKDIR /meowkov
+USER nobody
 
 RUN make build && \
     rm -rf /meowkov/Makefile /meowkov/.git

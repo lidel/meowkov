@@ -16,6 +16,7 @@ To start your own instance:
 ## Docker Commands
 
 - `make docker-rebuild` builds the app and runs it in a container
+- `make docker-update` same as `docker-rebuild` but also checks for `golang` and `redis` image updates
 - `make docker-stop` stops already existing container
 - `make docker-start` starts already existing container
 - `make docker-logs` tails the output (runs in debug by default)

@@ -7,22 +7,22 @@ DEPS     = $(shell go list -f '{{ join .Deps  "\n"}}' . | grep github.com)
 
 print-%: ; @echo $*=$($*) # eg. make print-DEPS
 
-all:    deps test lint build
-travis: deps test build
+all:    dev-deps test lint build
+travis: dev-deps test build
 
-build:  deps test
+build:  dev-deps test
 	$(GO) build -ldflags "-X main.version $(GITHASH)"  meowkov.go
-test:
+test: dev-deps
 	$(GO) test
 lint:
 	@$(GOLINT) .
 	@$(GO) vet .
-deps:
+dev-deps:
 	@echo $(DEPS) | xargs -n1 go get -v
-updatedeps:
+dev-updatedeps:
 	@echo $(DEPS) | xargs -n1 go get -v -u
-run:
-	./meowkov
+dev-run: deps
+	$(GO) run meowkov.go
 
 # dockerized build & container run (including redis)
 docker-rebuild: docker-stop docker-clean
@@ -35,12 +35,15 @@ docker-start:
 docker-stop:
 	$(D) ps -f 'name=meowkov*' -q | xargs -r docker stop
 docker-clean: docker-stop
-	$(D) ps -f 'name=meowkov*' -q -a | xargs -r docker rm
-	$(D) images -f 'label=meowkov' -q | xargs -r docker rmi
+	$(D) ps -f 'name=meowkov*' -q -a | xargs -r docker rm -f
+	$(D) images -f 'label=meowkov' -q | xargs -r docker rmi -f
 docker-logs:
 	$(D) logs --tail=100 -f meowkov_irc
 docker-corpus-add: docker-start
 	$(D) run -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -i --rm meowkov -import=true -purge=false
 docker-corpus-replace: docker-start
 	$(D) run -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -i --rm meowkov -import=true -purge=true
-
+docker-update:
+	$(D) pull $(shell awk '/^FROM/ { print $$2; exit }' Dockerfile)
+	$(D) pull redis
+	$(MAKE) docker-rebuild
