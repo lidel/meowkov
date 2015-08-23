@@ -70,6 +70,7 @@ func loadConfig(file string) (bool, bool) {
 		confPath    = flag.String("c", file, "path to the config file")
 		justImport  = flag.Bool("import", false, "If true, read messages from piped stdin instead of IRC")
 		purgeCorpus = flag.Bool("purge", false, "If true, removes old corpus before importing anything")
+		errorPrefix = "Error during loadConfig(): "
 	)
 	flag.Parse()
 
@@ -78,9 +79,9 @@ func loadConfig(file string) (bool, bool) {
 	}
 
 	jsonData, err := ioutil.ReadFile(*confPath)
-	check(err)
+	check(err, errorPrefix)
 	err = json.Unmarshal(jsonData, &config)
-	check(err)
+	check(err, errorPrefix)
 
 	if config.Debug {
 		log.Printf("%#v\n", config)
@@ -108,7 +109,7 @@ func loadConfig(file string) (bool, bool) {
 
 	// irc server validation
 	_, _, err = net.SplitHostPort(config.IrcServer)
-	check(err)
+	check(err, errorPrefix)
 
 	// other inits
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -138,7 +139,7 @@ func main() {
 
 func importLoop(newCorpus bool) {
 	fi, err := os.Stdin.Stat()
-	check(err)
+	check(err, "importLoop is unable to get stdin: ")
 	if fi.Mode()&os.ModeNamedPipe == 0 {
 		log.Panicln("no input: please pipe some data in and try again")
 	} else {
@@ -232,7 +233,7 @@ func calculateChattiness(message string, currentBotNick string) float64 {
 
 func getRedisServer() string {
 	redisHost, redisPort, err := net.SplitHostPort(config.RedisServer)
-	check(err)
+	check(err, "getRedisServer() is unable to get value from config file: ")
 
 	// support for dockerized redis
 	env := "REDIS_PORT_" + redisPort + "_TCP_ADDR"
@@ -631,8 +632,11 @@ func redisErr(err error) {
 	fmt.Fprintf(os.Stderr, "\n[redis error]: %v\n", err.Error())
 }
 
-func check(e error) {
+func check(e error, message string) {
 	if e != nil {
-		panic(e)
+		if message != "" {
+			log.Println(message)
+		}
+		log.Panicln(e)
 	}
 }
