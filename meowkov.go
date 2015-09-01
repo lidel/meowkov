@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,9 +39,10 @@ var config struct {
 	MinResponsePool  int64
 	MaxResponseTries int64
 
-	DefaultChattiness float64
-	SmileyChance      float64
-	WordsPerMinute    int64
+	DefaultChattiness       float64
+	MinTimeBetweenReactions int64
+	SmileyChance            float64
+	WordsPerMinute          int64
 
 	Smileys     []string
 	DontEndWith []string
@@ -57,8 +59,9 @@ const (
 )
 
 var (
-	pool    *redis.Pool
-	version string
+	pool         *redis.Pool
+	lastReaction int64
+	version      string
 
 	ownMention   *regexp.Regexp
 	otherMention *regexp.Regexp
@@ -121,6 +124,7 @@ func loadConfig(file string) (bool, bool) {
 	// other inits
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	rand.Seed(time.Now().Unix())
+	lastReaction = time.Now().UnixNano()
 
 	// detect when own nick is mentioned or when message is directed to other person
 	ownMention = regexp.MustCompile("(?i)_*" + regexp.QuoteMeta(config.BotName) + "_*[:,]*\\s*")
@@ -205,8 +209,11 @@ func ircLoop() {
 	})
 
 	con.AddCallback("JOIN", func(e *irc.Event) {
-		room, _ := inputSource(e.Raw, con.GetNick())
-		con.Privmsg(room, randomSmiley())
+		if withinReactionRate() {
+			room, _ := inputSource(e.Raw, con.GetNick())
+			con.Privmsg(room, randomSmiley())
+			bumpLastReaction()
+		}
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
@@ -215,7 +222,8 @@ func ircLoop() {
 		words, seeds := processInput(e.Message(), !privateQuery)
 		chattiness := calculateChattiness(e.Message(), ownNick, privateQuery)
 
-		if chattiness > rand.Float64() {
+		if react(chattiness) {
+			bumpLastReaction()
 			response := generateResponse(words, seeds, int(config.MaxResponseTries))
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
@@ -226,6 +234,18 @@ func ircLoop() {
 	})
 
 	con.Loop()
+}
+
+func react(chattiness float64) bool {
+	return chattiness == always || (chattiness > rand.Float64() && withinReactionRate())
+}
+
+func bumpLastReaction() {
+	atomic.StoreInt64(&lastReaction, time.Now().UnixNano())
+}
+
+func withinReactionRate() bool {
+	return atomic.LoadInt64(&lastReaction) < time.Now().Add(-time.Duration(config.MinTimeBetweenReactions)*time.Second).UnixNano()
 }
 
 func inputSource(raw string, ownNick string) (string, bool) {

@@ -16,6 +16,7 @@
   "MaxResponseTries": 5,
 
   "DefaultChattiness": 0.05,
+  "MinTimeBetweenReactions": 60,
   "SmileyChance": 0.5,
   "WordsPerMinute": 400,
 
