@@ -1,6 +1,6 @@
 {
   "BotName": "dev-meowkov",
-  "RoomName": "#meowkov",
+  "Channels": ["#meowkov"],
   "IrcServer": "chat.freenode.net:7000",
   "IrcPassword": "",
   "UseTLS": true,
@@ -8,7 +8,6 @@
   "Debug": false,
 
   "RedisServer": "localhost:6379",
-  "CorpusPerChannel": false,
 
   "ChainLength": 2,
   "MaxChainLength": 30,

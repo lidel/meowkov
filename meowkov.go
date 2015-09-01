@@ -24,14 +24,13 @@ import (
 
 var config struct {
 	BotName     string
-	RoomName    string
+	Channels    []string
 	IrcServer   string
 	IrcPassword string
 	UseTLS      bool
 	Debug       bool
 
-	RedisServer      string
-	CorpusPerChannel bool
+	RedisServer string
 
 	ChainLength      int64
 	MaxChainLength   int64
@@ -46,6 +45,8 @@ var config struct {
 	Smileys     []string
 	DontEndWith []string
 	Blacklist   []string
+
+	RoomName string `json:",omitempty"` // deprecated
 }
 
 const (
@@ -109,6 +110,12 @@ func loadConfig(file string) (bool, bool) {
 	// irc server validation
 	_, _, err = net.SplitHostPort(config.IrcServer)
 	check(err, errorPrefix)
+
+	// support legacy configs
+	if len(config.Channels) == 0 && config.RoomName != "" {
+		log.Fatalln("WARNING >>>> 'RoomName' is deprecated and will be removed in future. Use the 'Channels' list instead. Please update your config file.")
+		config.Channels = []string{config.RoomName}
+	}
 
 	// other inits
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -191,11 +198,14 @@ func ircLoop() {
 	con.Connect(config.IrcServer)
 
 	con.AddCallback("001", func(e *irc.Event) {
-		con.Join(config.RoomName)
+		for _, channel := range config.Channels {
+			con.Join(channel)
+		}
 	})
 
 	con.AddCallback("JOIN", func(e *irc.Event) {
-		con.Privmsg(config.RoomName, randomSmiley())
+		room, _ := inputSource(e.Raw, con.GetNick())
+		con.Privmsg(room, randomSmiley())
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
@@ -313,7 +323,7 @@ func addToCorpus(seeds [][]string) {
 	for i, seed := range seeds {
 
 		cut := len(seed) - 1
-		key := corpusKey(strings.Join(seed[:cut], separator))
+		key := strings.Join(seed[:cut], separator)
 		value := seed[cut:][0]
 
 		_, err := corpus.Do("SADD", key, value)
@@ -332,13 +342,6 @@ func addToCorpus(seeds [][]string) {
 			log.Println("corpus #" + fmt.Sprint(i) + ":\t" + dump(chainValues))
 		}
 	}
-}
-
-func corpusKey(key string) string {
-	if config.CorpusPerChannel {
-		key = config.RoomName + separator + key
-	}
-	return key
 }
 
 // [1 2 3 4 \x01] → [[1 2 3][2 3 4][3 4 \x01]]
@@ -456,7 +459,7 @@ func randomBranch(words []string) string {
 }
 
 func randomWord(key string, corpus redis.Conn) string {
-	value, err := redis.String(corpus.Do("SRANDMEMBER", corpusKey(key)))
+	value, err := redis.String(corpus.Do("SRANDMEMBER", key))
 	if err == nil || err == redis.ErrNil {
 		return value
 	}
