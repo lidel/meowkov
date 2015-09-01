@@ -89,13 +89,14 @@ func loadConfig(file string) (bool, bool) {
 	}
 
 	// init Redis
+	redisServer := getRedisServer()
 	pool = &redis.Pool{
 		MaxIdle:     3,
 		MaxActive:   100,
 		Wait:        true,
 		IdleTimeout: 1 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", getRedisServer())
+			c, err := redis.Dial("tcp", redisServer)
 			if err != nil {
 				return nil, err
 			}
