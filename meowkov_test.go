@@ -145,3 +145,17 @@ func TestInputSource(t *testing.T) {
 	}
 
 }
+
+func TestCreateSeeds(t *testing.T) {
+	input := []string{"1", "2", "3", "4", "5", "6"}
+	expected := [][]string{
+		[]string{"1", "2", "3"},
+		[]string{"2", "3", "4"},
+		[]string{"3", "4", "5"},
+		[]string{"4", "5", "6"},
+	}
+	output := createSeeds(input)
+	if !reflect.DeepEqual(output, expected) {
+		t.Error("createSeeds returns incorrect chain groups")
+	}
+}
