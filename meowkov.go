@@ -386,7 +386,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 		go func(seed []string) {
 			defer wg.Done()
 			for i := 0; i < int(config.ChainsToTry); i++ {
-				if response := randomBranch(seed); notPresent(response, seed) {
+				if response := randomBranch(seed); !contains(seed, response) {
 					mtx.Lock()
 					responses = append(responses, response)
 					mtx.Unlock()
@@ -423,15 +423,13 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	return response
 }
 
-func notPresent(item string, items []string) bool {
+func contains(items []string, item string) bool {
 	for _, oldItem := range items {
 		if item == oldItem {
-			return false
+			return true
 		}
-
 	}
-	return true
-
+	return false
 }
 
 func randomBranch(words []string) string {

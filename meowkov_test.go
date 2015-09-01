@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -158,4 +159,18 @@ func TestCreateSeeds(t *testing.T) {
 	if !reflect.DeepEqual(output, expected) {
 		t.Error("createSeeds returns incorrect chain groups")
 	}
+}
+
+func TestContains(t *testing.T) {
+	items := []string{"1", "2", "3"}
+	test := func(items []string, item string, expected bool) {
+		if contains(items, item) != expected {
+			t.Error("contains(" + dump(items) + "," + item + ") should return " + fmt.Sprint(expected))
+		}
+	}
+	test(items, "1", true)
+	test(items, "2", true)
+	test(items, "3", true)
+	test(items, "A", false)
+
 }
