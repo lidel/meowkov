@@ -9,14 +9,14 @@
 To start your own instance:
 
 1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
-2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `RoomName`
+2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `Channels`
 3. Run `make docker-rebuild` to buid (in foreground) and run (in background) via Docker container
 4. That is all: meowkov bot will join specified room after a few seconds
 
 ## Docker Commands
 
 - `make docker-rebuild` builds the app and runs it in a container
-- `make docker-update` same as `docker-rebuild` but also checks for `golang` and `redis` image updates
+- `make docker-update` same as `docker-rebuild` but also checks for updates of `golang` and `redis` images
 - `make docker-stop` stops already existing container
 - `make docker-start` starts already existing container
 - `make docker-logs` tails the output (runs in debug by default)
