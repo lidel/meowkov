@@ -11,7 +11,7 @@ all:    dev-deps test lint build
 travis: dev-deps test build
 
 build:  dev-deps test
-	$(GO) build -ldflags "-X main.version $(GITHASH)"  meowkov.go
+	$(GO) build -ldflags "-X main.version=$(GITHASH)"  meowkov.go
 test: dev-deps
 	$(GO) test
 lint:
@@ -21,7 +21,7 @@ dev-deps:
 	@echo $(DEPS) | xargs -n1 go get -v
 dev-updatedeps:
 	@echo $(DEPS) | xargs -n1 go get -v -u
-dev-run: deps
+dev-run: dev-deps
 	$(GO) run meowkov.go
 
 # dockerized build & container run (including redis)
