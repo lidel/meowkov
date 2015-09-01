@@ -120,13 +120,19 @@ func TestIsChainEmpty(t *testing.T) {
 }
 
 func TestCalculateChattiness(t *testing.T) {
-	chattiness := calculateChattiness("foo bar one two", "nickname")
+	privateQuery := false
+	chattiness := calculateChattiness("foo bar one two", "nickname", privateQuery)
 	if chattiness != config.DefaultChattiness {
 		t.Error("calculateChattiness should return DefaultChattiness if bot's nickname is not mentioned")
 	}
-	chattiness = calculateChattiness("foo bar nickname one two", "nickname")
+	chattiness = calculateChattiness("foo bar nickname one two", "nickname", privateQuery)
 	if chattiness != always {
 		t.Error("calculateChattiness should return 1.0 if nickname is mentioned")
+	}
+	privateQuery = true
+	chattiness = calculateChattiness("foo bar one two", "nickname", privateQuery)
+	if chattiness != always {
+		t.Error("calculateChattiness should return 1.0 if input is from a private query")
 	}
 
 }

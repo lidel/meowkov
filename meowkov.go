@@ -213,9 +213,9 @@ func ircLoop() {
 		ownNick := con.GetNick()
 		source, privateQuery := inputSource(e.Raw, ownNick)
 		words, seeds := processInput(e.Message(), !privateQuery)
-		chattiness := calculateChattiness(e.Message(), ownNick)
+		chattiness := calculateChattiness(e.Message(), ownNick, privateQuery)
 
-		if privateQuery || chattiness > rand.Float64() {
+		if chattiness > rand.Float64() {
 			response := generateResponse(words, seeds, int(config.MaxResponseTries))
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
@@ -237,9 +237,9 @@ func inputSource(raw string, ownNick string) (string, bool) {
 	return channel, privateQuery
 }
 
-func calculateChattiness(message string, currentBotNick string) float64 {
+func calculateChattiness(message string, currentBotNick string, privateQuery bool) float64 {
 	chattiness := config.DefaultChattiness
-	if strings.Contains(message, currentBotNick) || ownMention.MatchString(message) {
+	if privateQuery || strings.Contains(message, currentBotNick) || ownMention.MatchString(message) {
 		chattiness = always
 	}
 	return chattiness
