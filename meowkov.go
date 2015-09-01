@@ -88,14 +88,13 @@ func loadConfig(file string) (bool, bool) {
 	}
 
 	// init Redis
-	redisServer := getRedisServer()
 	pool = &redis.Pool{
 		MaxIdle:     3,
 		MaxActive:   100,
 		Wait:        true,
 		IdleTimeout: 1 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", redisServer)
+			c, err := redis.Dial("tcp", getRedisServer())
 			if err != nil {
 				return nil, err
 			}
@@ -200,15 +199,10 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		channel := strings.Split(e.Raw, " ")[2]
-		privateQuery := channel == con.GetNick()
-
-		if privateQuery {
-			channel = strings.Split(e.Raw[1:], "!")[0]
-		}
-
+		ownNick := con.GetNick()
+		source, privateQuery := inputSource(e.Raw, ownNick)
 		words, seeds := processInput(e.Message(), !privateQuery)
-		chattiness := calculateChattiness(e.Message(), con.GetNick())
+		chattiness := calculateChattiness(e.Message(), ownNick)
 
 		if privateQuery || chattiness > rand.Float64() {
 			response := generateResponse(words, seeds, int(config.MaxResponseTries))
@@ -216,11 +210,20 @@ func ircLoop() {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
 			typingDelay(response)
-			con.Privmsg(channel, response)
+			con.Privmsg(source, response)
 		}
 	})
 
 	con.Loop()
+}
+
+func inputSource(raw string, ownNick string) (string, bool) {
+	channel := strings.Split(raw, " ")[2]
+	privateQuery := channel == ownNick
+	if privateQuery {
+		channel = strings.Split(raw[1:], "!")[0]
+	}
+	return channel, privateQuery
 }
 
 func calculateChattiness(message string, currentBotNick string) float64 {

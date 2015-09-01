@@ -129,3 +129,19 @@ func TestCalculateChattiness(t *testing.T) {
 	}
 
 }
+
+func TestInputSource(t *testing.T) {
+	rawChannelMsg := ":foo!~bar@unaffiliated/foobar PRIVMSG #test :foo"
+	rawPrivateMsg := ":foo!~bar@unaffiliated/foobar PRIVMSG meowkov :foo"
+	ownNick := "meowkov"
+
+	source, priv := inputSource(rawChannelMsg, ownNick)
+	if source != "#test" || priv {
+		t.Error("inputSource should return channel")
+	}
+	source, priv = inputSource(rawPrivateMsg, ownNick)
+	if source != "foo" || !priv {
+		t.Error("inputSource should return private query")
+	}
+
+}
