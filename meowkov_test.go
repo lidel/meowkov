@@ -174,3 +174,20 @@ func TestContains(t *testing.T) {
 	test(items, "A", false)
 
 }
+
+func TestMutateChain(t *testing.T) {
+	input := []string{"1", "2"}
+	word := "A"
+	expected := []string{"A", "1", "A", "2", "A"}
+	output := mutateChain(word, input)
+	if !reflect.DeepEqual(output, expected) {
+		t.Error("mutateChain should return " + dump(expected))
+	}
+
+}
+
+func TestRandomSmiley(t *testing.T) {
+	if !contains(config.Smileys, randomSmiley()) {
+		t.Error("randomSmiley should return random item from the list in config file")
+	}
+}
