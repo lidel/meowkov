@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -189,11 +190,55 @@ func TestMutateChain(t *testing.T) {
 	if !reflect.DeepEqual(output, expected) {
 		t.Error("mutateChain should return " + dump(expected))
 	}
-
 }
 
 func TestRandomSmiley(t *testing.T) {
 	if !contains(config.Smileys, randomSmiley()) {
 		t.Error("randomSmiley should return random item from the list in config file")
+	}
+}
+
+func TestRemoveBlacklistedWords(t *testing.T) {
+	blacklistOrig := config.Blacklist
+	dontEndOrig := config.DontEndWith
+
+	config.Blacklist = []string{"2"}
+	config.DontEndWith = []string{"5", "6"}
+	input := []string{"1", "2", "3", "4", "5", "6"}
+	expected := []string{"1", "3", "4"}
+	output := removeBlacklistedWords(input)
+	if !reflect.DeepEqual(output, expected) {
+		t.Error("removeBlacklistedWords should return " + dump(expected))
+	}
+
+	config.Blacklist = blacklistOrig
+	config.DontEndWith = dontEndOrig
+}
+
+func TestMedian(t *testing.T) {
+	input := []int{1, 2, 3, 4, 5, 6}
+	expected := 3
+	output := median(input)
+	if output != expected {
+		t.Error("median should return " + fmt.Sprint(expected) + " but got " + fmt.Sprint(output))
+	}
+}
+
+func TestNormalizeResponseChains(t *testing.T) {
+	input := []string{"1", "1", "22", "333", "4444", "55555", "666666", "666666"}
+	expected := []string{"333", "4444", "55555", "666666"}
+	output := normalizeResponseChains(input)
+	sort.Strings(output)
+	if !reflect.DeepEqual(output, expected) {
+		t.Error("normalizeResponseChains should return " + dump(expected) + " but got " + dump(output))
+	}
+}
+
+func TestDump(t *testing.T) {
+	input := []string{"1", "2", "3"}
+	expected := `["1", "2", "3"]`
+	output := dump(input)
+	if expected != output {
+		t.Error("dump should return " + expected + " but got " + output)
 	}
 }

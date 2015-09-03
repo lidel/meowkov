@@ -623,7 +623,9 @@ func normalizeResponseChains(texts []string) []string {
 			result = append(result, text)
 		}
 	}
-	log.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
+	if config.Debug {
+		log.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
+	}
 
 	return result
 }
