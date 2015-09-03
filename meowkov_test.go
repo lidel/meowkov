@@ -13,7 +13,27 @@ func init() {
 	loadConfig("meowkov.conf.template")
 }
 
-func TestParseInput_standard(t *testing.T) {
+func TestProcessInput(t *testing.T) {
+	input := "1 2 3 4 5 6"
+	expWords := []string{"1", "2", "3", "4", "5", "6", stop}
+	expSeeds := [][]string{
+		[]string{"1", "2", "3"},
+		[]string{"2", "3", "4"},
+		[]string{"3", "4", "5"},
+		[]string{"4", "5", "6"},
+		[]string{"5", "6", stop},
+	}
+	words, seeds := processInput(input, false)
+	if !reflect.DeepEqual(words, expWords) {
+		t.Error("processInput words do not match expected value")
+	}
+	if !reflect.DeepEqual(seeds, expSeeds) {
+		t.Error("processInput seeds do not match expected value")
+	}
+
+}
+
+func TestParseInput(t *testing.T) {
 	test := func(input string, expected []string) {
 		words := parseInput(input)
 		if !reflect.DeepEqual(words, expected) {
