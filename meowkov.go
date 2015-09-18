@@ -217,6 +217,7 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
+		start := time.Now()
 		ownNick := con.GetNick()
 		source, privateQuery := inputSource(e.Raw, ownNick)
 		words, seeds := processInput(e.Message(), !privateQuery)
@@ -228,7 +229,7 @@ func ircLoop() {
 			if chattiness == always {
 				response = e.Nick + ": " + strings.TrimSpace(response)
 			}
-			typingDelay(response)
+			typingDelay(response, start)
 			con.Privmsg(source, response)
 		}
 	})
@@ -290,13 +291,20 @@ func isChainEmpty(texts []string) bool {
 	return len(texts) == 0 || (len(texts) == 1 && texts[0] == stop || texts[0] == "")
 }
 
-func typingDelay(text string) {
+func typingDelay(text string, start time.Time) {
+	durationSoFar := time.Now().Sub(start)
 	// https://en.wikipedia.org/wiki/Words_per_minute
-	typing := ((float64(len(text)) / 5) / float64(config.WordsPerMinute)) * 60
+	typing := time.Duration((float64(len(text))/5)/float64(config.WordsPerMinute)*60)*time.Second - durationSoFar
 	if config.Debug {
-		log.Println("Typing delay: " + fmt.Sprint(typing))
+		log.Println("Calculating response took: " + fmt.Sprint(durationSoFar))
+		log.Println("Remaining typing delay: " + fmt.Sprint(typing))
 	}
-	time.Sleep(time.Duration(typing) * time.Second)
+	if typing > 0 {
+		if config.Debug {
+			log.Println("<sleeping for " + fmt.Sprint(typing) + ">")
+		}
+		time.Sleep(typing)
+	}
 }
 
 func processInput(message string, learning bool) (words []string, seed [][]string) {

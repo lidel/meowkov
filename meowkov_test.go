@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 )
 
 func init() {
@@ -260,5 +261,14 @@ func TestDump(t *testing.T) {
 	output := dump(input)
 	if expected != output {
 		t.Error("dump should return " + expected + " but got " + output)
+	}
+}
+
+func TestTypingDelay(t *testing.T) {
+	start := time.Now()
+	typingDelay("fooo bar", time.Unix(start.Unix()-1, 0))
+	end := time.Now()
+	if end.Sub(start) > 1*time.Second {
+		t.Error("typingDelay should occur if response took long time to generate")
 	}
 }
