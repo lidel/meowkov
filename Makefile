@@ -21,7 +21,7 @@ dev-deps:
 	@echo $(DEPS) | xargs -n1 go get -v
 dev-updatedeps:
 	@echo $(DEPS) | xargs -n1 go get -v -u
-dev-run: dev-deps
+dev-run: dev-deps test
 	$(GO) run meowkov.go
 
 # dockerized build & container run (including redis)

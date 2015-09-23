@@ -414,7 +414,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 		go func(seed []string) {
 			defer wg.Done()
 			for i := 0; i < int(config.ChainsToTry); i++ {
-				if response := randomBranch(seed); !contains(seed, response) {
+				if response := randomBranch(seed); !isEmpty(response) && !contains(seed, response) {
 					mtx.Lock()
 					responses = append(responses, response)
 					mtx.Unlock()
@@ -426,19 +426,22 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	wg.Wait()
 
 	responses = normalizeResponseChains(responses)
+	count := len(responses)
 
 	if config.Debug {
-		log.Println("Found " + fmt.Sprint(len(responses)) + " potential responses:\n" + dump(responses))
+		log.Println("Found " + fmt.Sprint(len(responses)) + " potential responses")
+		if count > 0 {
+			log.Println(dump(responses))
+		}
 	}
 
-	count := len(responses)
 	if count >= int(config.MinResponsePool) {
 		response = responses[rand.Intn(count)]
 		response = response + " " + randomSmiley()
 	} else if triesLeft > 0 {
 		triesLeft--
 		try := int(config.MaxResponseTries) - triesLeft
-		power := try * try * try * try
+		power := try * try // * try * try
 		if config.Debug {
 			log.Println("Pool of responses is too small, trying again with artificialSeed^" + fmt.Sprint(power))
 		}
@@ -600,6 +603,9 @@ func normalizeResponseChains(texts []string) []string {
 	if len(texts) == 0 {
 		return texts
 	}
+	if config.Debug {
+		log.Println("Normalizing " + fmt.Sprint(len(texts)) + " responses")
+	}
 
 	// deduplicate
 	l := map[int]struct{}{}
@@ -632,7 +638,11 @@ func normalizeResponseChains(texts []string) []string {
 		}
 	}
 	if config.Debug {
-		log.Println("Discarded responses shorter than the median of " + fmt.Sprint(threshold) + " characters")
+		log.Println("Discarded responses <= median of " + fmt.Sprint(threshold) + " characters")
+	}
+
+	if isChainEmpty(result) {
+		result = []string{}
 	}
 
 	return result
