@@ -33,7 +33,9 @@ docker-start:
 	$(D) start meowkov_corpus
 	$(D) start meowkov_irc
 docker-stop:
-	$(D) ps -f 'name=meowkov*' -q | xargs -r docker stop
+	$(D) stop meowkov_irc
+	$(D) stop meowkov_corpus
+	$(D) ps -f 'name=meowkov_*' -q | xargs -r docker stop
 docker-clean: docker-stop
 	$(D) ps -f 'name=meowkov*' -q -a | xargs -r docker rm -f
 	$(D) images -f 'label=meowkov' -q | xargs -r docker rmi -f

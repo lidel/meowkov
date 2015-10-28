@@ -14,12 +14,14 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"os/signal"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -234,7 +236,41 @@ func ircLoop() {
 		}
 	})
 
+	shutdown := make(chan bool)
+	quitEvent := regexp.MustCompile("^:([^!]+)!.+QUIT")
+	con.AddCallback("QUIT", func(e *irc.Event) {
+		ownNick := con.GetNick()
+		quitNick := quitEvent.FindStringSubmatch(e.Raw)[1]
+		if ownNick == quitNick {
+			log.Printf("Disconnected from %s, goodbye.\n", config.IrcServer)
+			shutdown <- true
+		}
+	})
+
+	// proces termination signal triggers cleanup
+	sc := make(chan os.Signal)
+	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	go func() {
+		sig := <-sc
+		log.Printf("Received os.Signal '%s', shutting down..\n", sig)
+
+		// persist corpus to disk
+		log.Println("Saving corpus..")
+		corpus := pool.Get()
+		defer corpus.Close()
+		_, err := corpus.Do("SAVE")
+		if err == nil {
+			log.Println("Saved (dump.rdb)")
+		} else {
+			redisErr(err)
+		}
+
+		// disconnect
+		con.Quit()
+	}()
+
 	con.Loop()
+	<-shutdown
 }
 
 func react(chattiness float64) bool {
