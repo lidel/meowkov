@@ -6,6 +6,11 @@ go:
     - 1.5
     - tip
 
+matrix:
+    fast_finish: true
+    allow_failures:
+        - go: tip
+
 before_install:
     - go get github.com/axw/gocov/gocov
     - go get github.com/mattn/goveralls
