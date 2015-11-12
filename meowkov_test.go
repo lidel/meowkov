@@ -237,7 +237,7 @@ func TestRemoveBlacklistedWords(t *testing.T) {
 }
 
 func TestMedian(t *testing.T) {
-	input := []int{1, 2, 3, 4, 5, 6}
+	input := []int{6, 2, 3, 4, 5, 1}
 	expected := 3
 	output := median(input)
 	if output != expected {
@@ -246,7 +246,13 @@ func TestMedian(t *testing.T) {
 }
 
 func TestNormalizeResponseChains(t *testing.T) {
-	input := []string{"1", "1", "22", "333", "4444", "55555", "666666", "666666"}
+	input := make(StringSet)
+	input["1"] = struct{}{}
+	input["22"] = struct{}{}
+	input["333"] = struct{}{}
+	input["4444"] = struct{}{}
+	input["55555"] = struct{}{}
+	input["666666"] = struct{}{}
 	expected := []string{"333", "4444", "55555", "666666"}
 	output := normalizeResponseChains(input)
 	sort.Strings(output)

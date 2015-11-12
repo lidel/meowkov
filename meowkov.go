@@ -71,6 +71,8 @@ var (
 	textCruft    *regexp.Regexp
 )
 
+type StringSet map[string]struct{}
+
 func loadConfig(file string) (bool, bool) {
 	var (
 		confPath    = flag.String("c", file, "path to the config file")
@@ -445,6 +447,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 
 	var wg sync.WaitGroup
 	var mtx sync.Mutex
+	var responset = make(StringSet)
 	for _, seed := range seeds {
 		wg.Add(1)
 		go func(seed []string) {
@@ -452,7 +455,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 			for i := 0; i < int(config.ChainsToTry); i++ {
 				if response := randomBranch(seed); !isEmpty(response) && !contains(seed, response) {
 					mtx.Lock()
-					responses = append(responses, response)
+					responset[response] = struct{}{}
 					mtx.Unlock()
 				}
 				runtime.Gosched()
@@ -461,7 +464,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	}
 	wg.Wait()
 
-	responses = normalizeResponseChains(responses)
+	responses = normalizeResponseChains(responset)
 	count := len(responses)
 
 	if config.Debug {
@@ -635,40 +638,30 @@ DontEndWith:
 	return words
 }
 
-func normalizeResponseChains(texts []string) []string {
-	if len(texts) == 0 {
-		return texts
-	}
-	if config.Debug {
-		log.Println("Normalizing " + fmt.Sprint(len(texts)) + " responses")
-	}
-
-	// deduplicate
-	l := map[int]struct{}{}
-	m := map[string]struct{}{}
-	for _, text := range texts {
-		if _, ok := m[text]; !ok {
-			m[text] = struct{}{}
-			l[len(text)] = struct{}{}
-		}
-	}
-	list := make([]string, len(m))
-	i := 0
-	for v := range m {
-		list[i] = v
-		i++
-	}
-
-	// drop bottom half (below median)
+func normalizeResponseChains(texts StringSet) []string {
 	var result []string
+
+	if len(texts) == 0 {
+		return []string{}
+	}
+
+	if config.Debug {
+		log.Println("Normalizing " + fmt.Sprint(len(texts)) + " unique responses")
+	}
+
+	// calculate lengths
+	l := map[int]struct{}{}
+	for text, _ := range texts {
+		l[len(text)] = struct{}{}
+	}
 	lengths := make([]int, 0, len(l))
 	for k := range l {
 		lengths = append(lengths, k)
 	}
-	sort.Ints(lengths)
+
+	// drop bottom half (below median)
 	threshold := median(lengths)
-	for i := range list {
-		text := list[i]
+	for text, _ := range texts {
 		if len(text) >= threshold {
 			result = append(result, text)
 		}
@@ -685,6 +678,8 @@ func normalizeResponseChains(texts []string) []string {
 }
 
 func median(numbers []int) int {
+	sort.Ints(numbers)
+
 	length := len(numbers)
 	middle := length / 2
 
