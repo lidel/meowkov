@@ -71,7 +71,7 @@ var (
 	textCruft    *regexp.Regexp
 )
 
-type StringSet map[string]struct{}
+type uniqueTexts map[string]struct{}
 
 func loadConfig(file string) (bool, bool) {
 	var (
@@ -447,7 +447,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 
 	var wg sync.WaitGroup
 	var mtx sync.Mutex
-	var responset = make(StringSet)
+	var responset = make(uniqueTexts)
 	for _, seed := range seeds {
 		wg.Add(1)
 		go func(seed []string) {
@@ -638,7 +638,7 @@ DontEndWith:
 	return words
 }
 
-func normalizeResponseChains(texts StringSet) []string {
+func normalizeResponseChains(texts uniqueTexts) []string {
 	var result []string
 
 	if len(texts) == 0 {
@@ -651,7 +651,7 @@ func normalizeResponseChains(texts StringSet) []string {
 
 	// calculate lengths
 	l := map[int]struct{}{}
-	for text, _ := range texts {
+	for text := range texts {
 		l[len(text)] = struct{}{}
 	}
 	lengths := make([]int, 0, len(l))
@@ -661,7 +661,7 @@ func normalizeResponseChains(texts StringSet) []string {
 
 	// drop bottom half (below median)
 	threshold := median(lengths)
-	for text, _ := range texts {
+	for text := range texts {
 		if len(text) >= threshold {
 			result = append(result, text)
 		}

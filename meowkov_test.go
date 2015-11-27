@@ -18,11 +18,11 @@ func TestProcessInput(t *testing.T) {
 	input := "1 2 3 4 5 6"
 	expWords := []string{"1", "2", "3", "4", "5", "6", stop}
 	expSeeds := [][]string{
-		[]string{"1", "2", "3"},
-		[]string{"2", "3", "4"},
-		[]string{"3", "4", "5"},
-		[]string{"4", "5", "6"},
-		[]string{"5", "6", stop},
+		{"1", "2", "3"},
+		{"2", "3", "4"},
+		{"3", "4", "5"},
+		{"4", "5", "6"},
+		{"5", "6", stop},
 	}
 	words, seeds := processInput(input, false)
 	if !reflect.DeepEqual(words, expWords) {
@@ -178,10 +178,10 @@ func TestInputSource(t *testing.T) {
 func TestCreateSeeds(t *testing.T) {
 	input := []string{"1", "2", "3", "4", "5", "6"}
 	expected := [][]string{
-		[]string{"1", "2", "3"},
-		[]string{"2", "3", "4"},
-		[]string{"3", "4", "5"},
-		[]string{"4", "5", "6"},
+		{"1", "2", "3"},
+		{"2", "3", "4"},
+		{"3", "4", "5"},
+		{"4", "5", "6"},
 	}
 	output := createSeeds(input)
 	if !reflect.DeepEqual(output, expected) {
@@ -246,7 +246,7 @@ func TestMedian(t *testing.T) {
 }
 
 func TestNormalizeResponseChains(t *testing.T) {
-	input := make(StringSet)
+	input := make(uniqueTexts)
 	input["1"] = struct{}{}
 	input["22"] = struct{}{}
 	input["333"] = struct{}{}
