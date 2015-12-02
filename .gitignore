@@ -8,7 +8,7 @@ meowkov.conf
 data/dump.rdb
 
 # corpus file for testing
-irc_logs.sh
+irc_logs*.sh
 corpus*.txt
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)

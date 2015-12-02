@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/fiam/gounidecode/unidecode"
 	"github.com/garyburd/redigo/redis"
 	"github.com/thoj/go-ircevent"
 	"io"
@@ -435,6 +436,28 @@ func createSeeds(words []string) [][]string {
 	return seeds
 }
 
+func chainTransliterations(seeds [][]string) [][]string {
+	var transliterations [][]string
+
+	for _, chain := range seeds {
+		var (
+			asciiChain []string
+			diff       = false
+		)
+		for _, word := range chain {
+			ascii := unidecode.Unidecode(word)
+			asciiChain = append(asciiChain, ascii)
+			if ascii != word {
+				diff = true
+			}
+		}
+		if diff {
+			transliterations = append(transliterations, asciiChain)
+		}
+	}
+	return transliterations
+}
+
 func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	var (
 		responses []string
@@ -448,7 +471,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	var wg sync.WaitGroup
 	var mtx sync.Mutex
 	var responset = make(uniqueTexts)
-	for _, seed := range seeds {
+	for _, seed := range append(seeds, chainTransliterations(seeds)...) {
 		wg.Add(1)
 		go func(seed []string) {
 			defer wg.Done()

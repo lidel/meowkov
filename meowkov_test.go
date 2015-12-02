@@ -189,6 +189,29 @@ func TestCreateSeeds(t *testing.T) {
 	}
 }
 
+func TestiAppendTransliterations(t *testing.T) {
+	test := func(input [][]string, expected [][]string) {
+		output := chainTransliterations(input)
+		if !reflect.DeepEqual(output, expected) {
+			t.Error("chainTransliterations returns incorrect chain groups")
+		}
+	}
+
+	test([][]string{
+		{"2", "3", "4"},
+		{"3", "ź", "5"},
+		{"4", "5", "żółć"},
+	}, [][]string{
+		{"3", "z", "5"},
+		{"4", "5", "zolc"},
+	})
+
+	test([][]string{
+		{"2", "3", "4"},
+		{"3", "4", "5"},
+	}, [][]string{})
+}
+
 func TestContains(t *testing.T) {
 	items := []string{"1", "2", "3"}
 	test := func(items []string, item string, expected bool) {
