@@ -4,8 +4,11 @@ LABEL meowkov=yes
 
 COPY meowkov /
 
-RUN echo "nobody:x:65534:65534:nobody:/:/bin/false" >> /etc/passwd
-RUN echo "nobody:x:65534:" >> /etc/group
+# Add missing CA information for TLS connections
+COPY ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+RUN echo "nobody:x:65534:65534:nobody:/:/bin/false" >> /etc/passwd && \
+    echo "nobody:x:65534:" >> /etc/group
 
 USER nobody
 

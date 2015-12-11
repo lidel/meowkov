@@ -5,4 +5,4 @@ WORKDIR /
 
 RUN make build
 
-CMD tar -cf - -C / Dockerfile.run meowkov
+CMD tar -cf - -C /etc/ssl/certs/ ca-certificates.crt -C / Dockerfile.run meowkov
