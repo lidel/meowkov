@@ -1,0 +1,8 @@
+FROM golang:latest
+
+COPY Makefile meowkov* .git Dockerfile.run /
+WORKDIR /
+
+RUN make build
+
+CMD tar -cf - -C / Dockerfile.run meowkov

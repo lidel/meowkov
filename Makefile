@@ -1,9 +1,9 @@
 GO      ?= go
 GOLINT  ?= golint
 D       ?= docker
-GITHASH  = $(shell git rev-parse --short HEAD)
-DEPS     = $(shell go list -f '{{ join .Deps  "\n"}}' . | grep github.com)
-
+GITHASH ?= $(shell git rev-parse --short HEAD)
+DEPS    ?= $(shell go list -f '{{ join .Deps  "\n"}}' . | grep github.com)
+TMP_DIR  = /tmp/meowkov-build
 
 print-%: ; @echo $*=$($*) # eg. make print-DEPS
 
@@ -11,7 +11,8 @@ all:    dev-deps test lint build
 travis: dev-deps test build
 
 build:  dev-deps test
-	$(GO) build -ldflags "-X main.version=$(GITHASH)"  meowkov.go
+	# build statically-linked binary
+	CGO_ENABLED=0 $(GO) build -ldflags "-X main.version=$(GITHASH)"  meowkov.go
 test: dev-deps
 	$(GO) test
 lint:
@@ -24,11 +25,22 @@ dev-updatedeps:
 dev-run: dev-deps test
 	$(GO) run meowkov.go
 
-# dockerized build & container run (including redis)
+# dockerized build & container run (ncluding redis)
 docker-rebuild: docker-stop docker-clean
-	$(D) build -t meowkov .
+	# build binary inside golang image (700MB)
+	# and put it in a new, small busybox image (<10MB)
+	$(D) build -t meowkov_builder -f Dockerfile.build .
+	# below line does not work due to a bug: https://github.com/docker/docker/issues/15785
+	#$(D) run --rm meowkov_builder | docker build -t meowkov -f Dockerfile.run -
+	# until it gets fixed, we run a workaround:
+	mkdir -p $(TMP_DIR)
+	$(D) run --rm meowkov_builder | tar -C $(TMP_DIR) -xvf -
+	docker build -t meowkov -f $(TMP_DIR)/Dockerfile.run $(TMP_DIR)
+	rm -rf $(TMP_DIR)
+	$(D) rmi -f meowkov_builder
+
 	$(D) run -d -v $(CURDIR)/data:/data:rw --name meowkov_corpus redis
-	$(D) run -d -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -it --name meowkov_irc meowkov
+	$(D) run -d -v $(CURDIR)/meowkov.conf:/meowkov.conf:ro --link meowkov_corpus:redis -it --name meowkov_irc meowkov
 docker-start:
 	$(D) start meowkov_corpus
 	$(D) start meowkov_irc
@@ -45,6 +57,7 @@ docker-corpus-add: docker-start
 docker-corpus-replace: docker-start
 	$(D) run -v $(CURDIR)/meowkov.conf:/meowkov/meowkov.conf:ro --link meowkov_corpus:redis -i --rm meowkov -import=true -purge=true
 docker-update:
-	$(D) pull $(shell awk '/^FROM/ { print $$2; exit }' Dockerfile)
+	$(D) pull $(shell awk '/^FROM/ { print $$2; exit }' Dockerfile.build)
+	$(D) pull $(shell awk '/^FROM/ { print $$2; exit }' Dockerfile.run)
 	$(D) pull redis
 	$(MAKE) docker-rebuild

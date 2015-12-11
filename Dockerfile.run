@@ -1,0 +1,12 @@
+FROM busybox:latest
+
+LABEL meowkov=yes
+
+COPY meowkov /
+
+RUN echo "nobody:x:65534:65534:nobody:/:/bin/false" >> /etc/passwd
+RUN echo "nobody:x:65534:" >> /etc/group
+
+USER nobody
+
+ENTRYPOINT ["/meowkov"]
