@@ -222,21 +222,24 @@ func ircLoop() {
 	})
 
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
-		start := time.Now()
-		ownNick := con.GetNick()
-		source, privateQuery := inputSource(e.Raw, ownNick)
-		words, seeds := processInput(e.Message(), !privateQuery)
-		chattiness := calculateChattiness(e.Message(), ownNick, privateQuery)
+		// response takes some work, running in a new thread
+		go func(e *irc.Event) {
+			start := time.Now()
+			ownNick := con.GetNick()
+			source, privateQuery := inputSource(e.Raw, ownNick)
+			words, seeds := processInput(e.Message(), !privateQuery)
+			chattiness := calculateChattiness(e.Message(), ownNick, privateQuery)
 
-		if react(chattiness) {
-			bumpLastReaction()
-			response := generateResponse(words, seeds, int(config.MaxResponseTries))
-			if chattiness == always {
-				response = e.Nick + ": " + strings.TrimSpace(response)
+			if react(chattiness) {
+				bumpLastReaction()
+				response := generateResponse(words, seeds, int(config.MaxResponseTries))
+				if chattiness == always {
+					response = e.Nick + ": " + strings.TrimSpace(response)
+				}
+				typingDelay(response, start)
+				con.Privmsg(source, response)
 			}
-			typingDelay(response, start)
-			con.Privmsg(source, response)
-		}
+		}(e)
 	})
 
 	shutdown := make(chan bool)
