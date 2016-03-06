@@ -12,8 +12,8 @@
   "ChainLength": 2,
   "MaxChainLength": 30,
   "ChainsToTry": 64,
-  "MinResponsePool": 5,
-  "MaxResponseTries": 12,
+  "MinResponsePool": 3,
+  "MaxResponseTries": 10,
 
   "DefaultChattiness": 0.05,
   "MinTimeBetweenReactions": 60,
