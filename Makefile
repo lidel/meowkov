@@ -25,18 +25,12 @@ dev-updatedeps:
 dev-run: dev-deps test
 	$(GO) run meowkov.go
 
-# dockerized build & container run (ncluding redis)
+# dockerized build & container run (including redis)
 docker-rebuild: docker-stop docker-clean
 	# build binary inside golang image (700MB)
 	# and put it in a new, small busybox image (<10MB)
 	$(D) build -t meowkov_builder -f Dockerfile.build .
-	# below line does not work due to a bug: https://github.com/docker/docker/issues/15785
-	#$(D) run --rm meowkov_builder | docker build -t meowkov -f Dockerfile.run -
-	# until it gets fixed, we run a workaround:
-	mkdir -p $(TMP_DIR)
-	$(D) run --rm meowkov_builder | tar -C $(TMP_DIR) -xvf -
-	docker build -t meowkov -f $(TMP_DIR)/Dockerfile.run $(TMP_DIR)
-	rm -rf $(TMP_DIR)
+	$(D) run --net=none --rm meowkov_builder | docker build -t meowkov -f Dockerfile.run -
 	$(D) rmi -f meowkov_builder
 
 	$(D) run -d -v $(CURDIR)/data:/data:rw --name meowkov_corpus redis
