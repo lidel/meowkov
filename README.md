@@ -3,7 +3,7 @@
 [![Coverage Status](https://coveralls.io/repos/lidel/meowkov/badge.svg?branch=master&service=github)](https://coveralls.io/github/lidel/meowkov?branch=master)
 [![Go Report Card](http://goreportcard.com/badge/lidel/meowkov)](http://goreportcard.com/report/lidel/meowkov)
 
-[Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot (PoC exercise in [golang](http://golang.org/) and [Redis](http://redis.io/))
+[Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot (PoC exercise in [golang](http://golang.org/) and [Redis](http://redis.io/)). 
 
 ## Quick Start
 
@@ -63,3 +63,8 @@ To persist this setting between reboots, add this line to `/etc/sysctl.conf`:
 ```
 net.ipv4.tcp_tw_reuse = 1
 ```
+
+## External Resources
+
+- [Markov Chains at Wikipedia](https://en.wikipedia.org/wiki/Markov_chain)
+- [Markov Chain Explained Visually](http://setosa.io/ev/markov-chains/)
