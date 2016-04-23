@@ -100,9 +100,9 @@ func loadConfig(file string) (bool, bool) {
 	redisServer := getRedisServer()
 	pool = &redis.Pool{
 		MaxIdle:     3,
-		MaxActive:   100,
+		MaxActive:   1000,
 		Wait:        true,
-		IdleTimeout: 1 * time.Second,
+		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", redisServer)
 			if err != nil {
@@ -534,11 +534,8 @@ func randomBranch(words []string) string {
 	chainKey := strings.Join(chain, separator)
 	response := []string{chain[0]}
 
-	corpus := pool.Get()
-	defer corpus.Close()
-
 	for i := 0; i < int(config.MaxChainLength); i++ {
-		word := randomWord(chainKey, corpus)
+		word := randomWord(chainKey)
 		if !isEmpty(word) {
 			chain = append(chain[1:], word)
 			response = append(response, chain[0])
@@ -553,7 +550,9 @@ func randomBranch(words []string) string {
 	return strings.Join(response, " ")
 }
 
-func randomWord(key string, corpus redis.Conn) string {
+func randomWord(key string) string {
+	corpus := pool.Get()
+	defer corpus.Close()
 	value, err := redis.String(corpus.Do("SRANDMEMBER", key))
 	if err == nil || err == redis.ErrNil {
 		return value
@@ -562,7 +561,9 @@ func randomWord(key string, corpus redis.Conn) string {
 	return stop
 }
 
-func randomChain(corpus redis.Conn) []string {
+func randomChain() []string {
+	corpus := pool.Get()
+	defer corpus.Close()
 	value, err := redis.String(corpus.Do("RANDOMKEY"))
 	if err != nil && err != redis.ErrNil {
 		redisErr(err)
@@ -584,9 +585,7 @@ func artificialSeed(input []string, power int) [][]string {
 	var result [][]string
 
 	if isChainEmpty(input) {
-		corpus := pool.Get()
-		input = randomChain(corpus)[:1]
-		corpus.Close()
+		input = randomChain()[:1]
 	}
 
 	var wg sync.WaitGroup
@@ -598,10 +597,8 @@ func artificialSeed(input []string, power int) [][]string {
 		for i := 0; i < power; i++ {
 			wg.Add(1)
 			go func(word string, i int) {
-				corpus := pool.Get()
-				defer corpus.Close()
 				defer wg.Done()
-				for _, mutation := range createSeeds(mutateChain(word, randomChain(corpus))) {
+				for _, mutation := range createSeeds(mutateChain(word, randomChain())) {
 					mtx.Lock()
 					result = append(result, mutation)
 					mtx.Unlock()
