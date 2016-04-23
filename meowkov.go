@@ -506,7 +506,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	} else if triesLeft > 0 {
 		triesLeft--
 		try := int(config.MaxResponseTries) - triesLeft
-		power := try * try // * try * try
+		power := try * try * try // * try
 		if config.Debug {
 			log.Println("Pool of responses is too small, trying again with artificialSeed^" + fmt.Sprint(power))
 		}
