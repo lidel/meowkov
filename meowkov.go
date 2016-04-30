@@ -98,6 +98,7 @@ func loadConfig(file string) (bool, bool) {
 
 	// init Redis
 	redisServer := getRedisServer()
+	log.Println("Connecting to Redis at " + redisServer)
 	pool = &redis.Pool{
 		MaxIdle:     3,
 		MaxActive:   1000,
@@ -205,6 +206,7 @@ func ircLoop() {
 		con.Password = config.IrcPassword
 	}
 
+	log.Println("Connecting to IRC at " + config.IrcServer)
 	con.Connect(config.IrcServer)
 
 	con.AddCallback("001", func(e *irc.Event) {
@@ -242,15 +244,16 @@ func ircLoop() {
 		}(e)
 	})
 
-	shutdown := make(chan bool)
 	quitEvent := regexp.MustCompile("^:([^!]+)!.+QUIT")
 	con.AddCallback("QUIT", func(e *irc.Event) {
-		ownNick := con.GetNick()
-		quitNick := quitEvent.FindStringSubmatch(e.Raw)[1]
-		if ownNick == quitNick {
-			log.Printf("Disconnected from %s, goodbye.\n", config.IrcServer)
-			shutdown <- true
-		}
+		go func(e *irc.Event) {
+			ownNick := con.GetNick()
+			quitNick := quitEvent.FindStringSubmatch(e.Raw)[1]
+			if ownNick == quitNick && strings.Contains(e.Raw, "Ping timeout") {
+				log.Println("Timeout detected, reconnecting to " + config.IrcServer)
+				con.Reconnect()
+			}
+		}(e)
 	})
 
 	// proces termination signal triggers cleanup
@@ -273,10 +276,12 @@ func ircLoop() {
 
 		// disconnect
 		con.Quit()
+		con.Disconnect()
 	}()
 
+	log.Printf("Starting the IRC Loop..")
 	con.Loop()
-	<-shutdown
+	log.Printf("Out of the IRC Loop, bye!")
 }
 
 func react(chattiness float64) bool {
