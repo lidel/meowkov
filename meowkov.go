@@ -6,17 +6,19 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/fiam/gounidecode/unidecode"
 	"github.com/garyburd/redigo/redis"
 	"github.com/thoj/go-ircevent"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net"
 	"os"
 	"os/signal"
 	"regexp"
+
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -83,9 +85,7 @@ func loadConfig(file string) (bool, bool) {
 	)
 	flag.Parse()
 
-	if config.Debug {
-		log.Println("Loading config file: " + *confPath)
-	}
+	log.Info("Loading config file: " + *confPath)
 
 	jsonData, err := ioutil.ReadFile(*confPath)
 	check(err, errorPrefix)
@@ -93,7 +93,20 @@ func loadConfig(file string) (bool, bool) {
 	check(err, errorPrefix)
 
 	if config.Debug {
-		log.Printf("%#v\n", config)
+		log.SetLevel(log.DebugLevel)
+		//log.Debugf("%#v\n", config)
+		c := reflect.ValueOf(&config).Elem()
+		t := c.Type()
+		secret := regexp.MustCompile("(?i)password")
+		for i := 0; i < c.NumField(); i++ {
+			f := c.Field(i)
+			value := f.Interface()
+			name := t.Field(i).Name
+			if secret.MatchString(name) {
+				value = "(secret)"
+			}
+			log.Debugf("\t%s = %v", t.Field(i).Name, value)
+		}
 	}
 
 	// init Redis
@@ -261,27 +274,33 @@ func ircLoop() {
 	signal.Notify(sc, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	go func() {
 		sig := <-sc
-		log.Printf("Received os.Signal '%s', shutting down..\n", sig)
+		log.Warn("Received '", sig, "' signal, shutting down")
+		exitCode := 0
 
 		// persist corpus to disk
-		log.Println("Saving corpus..")
+		log.Info("Saving the Corpus")
+		defer pool.Close()
 		corpus := pool.Get()
 		defer corpus.Close()
 		_, err := corpus.Do("SAVE")
 		if err == nil {
-			log.Println("Saved (dump.rdb)")
+			log.Info("Saved to dump.rdb")
 		} else {
-			redisErr(err)
+			log.Error("Unable to save Corpus: ", err)
+			exitCode = 1
 		}
 
 		// disconnect
-		con.Quit()
-		con.Disconnect()
+		if con.Connected() {
+			log.Warn("Disconnecting from IRC")
+			con.Quit()
+			con.Disconnect()
+		}
+		os.Exit(exitCode)
 	}()
 
-	log.Printf("Starting the IRC Loop..")
 	con.Loop()
-	log.Printf("Out of the IRC Loop, bye!")
+	log.Panic("The IRC Loop finished prematurely")
 }
 
 func react(chattiness float64) bool {
@@ -733,7 +752,7 @@ func dump(texts []string) string {
 }
 
 func redisErr(err error) {
-	fmt.Fprintf(os.Stderr, "\n[redis error]: %v\n", err.Error())
+	log.Errorf("[redis error]: %v\n", err.Error())
 }
 
 func check(e error, message string) {
