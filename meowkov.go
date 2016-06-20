@@ -229,7 +229,7 @@ func ircLoop() {
 	})
 
 	con.AddCallback("JOIN", func(e *irc.Event) {
-		if withinReactionRate() {
+		if react(config.DefaultChattiness) {
 			room, _ := inputSource(e.Raw, con.GetNick())
 			con.Privmsg(room, randomSmiley())
 			bumpLastReaction()
