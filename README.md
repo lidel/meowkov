@@ -3,18 +3,42 @@
 [![Coverage Status](https://coveralls.io/repos/lidel/meowkov/badge.svg?branch=master&service=github)](https://coveralls.io/github/lidel/meowkov?branch=master)
 [![Go Report Card](http://goreportcard.com/badge/lidel/meowkov)](http://goreportcard.com/report/lidel/meowkov)
 
-[Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot (PoC exercise in [golang](http://golang.org/) and [Redis](http://redis.io/)). 
+> [Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot and PoC exercise in [golang](http://golang.org/) and [Redis](http://redis.io/)
 
-## Quick Start
+## Table of Contents
+
+- [Background](#background)
+  - [Markov Chains](#markov-chains)
+- [Usage](#usage)
+  - [Quick Start](#quick-start)
+  - [Docker Commands](#docker-commands)
+  - [Populating Corpus](#populating-corpus)
+  - [Kernel Tuning](#kernel-tuning)
+- [License](#license)
+
+## Background
+
+Meowkov is a simple [Markov chain](https://en.wikipedia.org/wiki/Markov_chain) IRC bot.
+Created as a learning exercise in [golang](http://golang.org/) and [Redis](http://redis.io/).
+
+### Markov Chains
+
+- [Markov Chains at Wikipedia](https://en.wikipedia.org/wiki/Markov_chain)
+- [Markov Chain Explained Visually](http://setosa.io/ev/markov-chains/)
+
+
+## Usage
+
+### Quick Start
 
 To start your own instance:
 
 1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
 2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `Channels`
-3. Run `make docker-rebuild` to buid (in foreground) and run (in background) via Docker container
+3. Run `make docker-rebuild` to build (in foreground) and run (in background) via Docker container
 4. That is all: meowkov bot will join specified room after a few seconds
 
-## Docker Commands
+### Docker Commands
 
 - `make docker-rebuild` builds the app and runs it in a container
 - `make docker-update` same as `docker-rebuild` but also checks for updates of `golang` and `redis` images
@@ -26,7 +50,7 @@ To start your own instance:
 - `echo "some text" | make docker-corpus-replace` replaces corpus with piped data
   (destructive, remember to backup `data/dump.rpd` before executing this)
 
-## Populating the Corpus
+### Populating Corpus
 
 The bot is as good as its corpus.    
 Running it with empty one will not produce any meaningful results for a long time.    
@@ -50,7 +74,7 @@ cat corpus.txt | make docker-corpus-add
 Changes are instantaneous: corpus import can be performed while bot is running, no restart is required.    
 The same text can be imported multiple times: Markov chains are kept in Redis Sets which provide automatic deduplication.
 
-## Kernel Tuning
+### Kernel Tuning
 
 If you experience the `cannot assign requested address` error, set:
 
@@ -64,7 +88,6 @@ To persist this setting between reboots, add this line to `/etc/sysctl.conf`:
 net.ipv4.tcp_tw_reuse = 1
 ```
 
-## External Resources
+## License
 
-- [Markov Chains at Wikipedia](https://en.wikipedia.org/wiki/Markov_chain)
-- [Markov Chain Explained Visually](http://setosa.io/ev/markov-chains/)
+[CC0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)
