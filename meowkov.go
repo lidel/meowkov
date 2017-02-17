@@ -418,7 +418,8 @@ func addToCorpus(seeds [][]string) {
 	for i, seed := range seeds {
 
 		cut := len(seed) - 1
-		key := strings.Join(seed[:cut], separator)
+		head := seed[:cut]
+		key := strings.Join(head, separator)
 		value := seed[cut:][0]
 
 		_, err := corpus.Do("SADD", key, value)
@@ -428,7 +429,8 @@ func addToCorpus(seeds [][]string) {
 		}
 
 		if config.Debug {
-			log.Println("seed  #" + fmt.Sprint(i) + ":\t" + dump(seed))
+			log.Println("seed   #" + fmt.Sprint(i) + ":\t" + dump(seed))
+			log.Println("key    #" + fmt.Sprint(i) + ":\t" + dump(head))
 			chainValues, err := redis.Strings(corpus.Do("SMEMBERS", key))
 			if err != nil {
 				redisErr(err)
