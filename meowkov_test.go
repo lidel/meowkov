@@ -189,7 +189,7 @@ func TestCreateSeeds(t *testing.T) {
 	}
 }
 
-func TestiAppendTransliterations(t *testing.T) {
+func TestAppendTransliterations(t *testing.T) {
 	test := func(input [][]string, expected [][]string) {
 		output := chainTransliterations(input)
 		if !reflect.DeepEqual(output, expected) {
