@@ -6,10 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/fiam/gounidecode/unidecode"
-	"github.com/garyburd/redigo/redis"
-	"github.com/thoj/go-ircevent"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -17,6 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/fiam/gounidecode/unidecode"
+	"github.com/garyburd/redigo/redis"
+	"github.com/thoj/go-ircevent"
 
 	"reflect"
 	"runtime"
@@ -125,6 +126,10 @@ func loadConfig(file string) (bool, bool) {
 			return c, err
 		},
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			// ping connections that were idle more than a minute
+			if time.Since(t) < time.Minute {
+				return nil
+			}
 			_, err := c.Do("PING")
 			return err
 		},
@@ -467,7 +472,6 @@ func createSeeds(words []string) [][]string {
 
 func chainTransliterations(seeds [][]string) [][]string {
 	var transliterations [][]string
-
 	for _, chain := range seeds {
 		var (
 			asciiChain []string
@@ -476,6 +480,7 @@ func chainTransliterations(seeds [][]string) [][]string {
 		for _, word := range chain {
 			ascii := unidecode.Unidecode(word)
 			asciiChain = append(asciiChain, ascii)
+
 			if ascii != word {
 				diff = true
 			}
