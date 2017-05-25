@@ -193,7 +193,7 @@ func TestAppendTransliterations(t *testing.T) {
 	test := func(input [][]string, expected [][]string) {
 		output := chainTransliterations(input)
 		if !reflect.DeepEqual(output, expected) {
-			t.Error("chainTransliterations returns incorrect chain groups")
+			t.Error("chainTransliterations returns incorrect chain groups: " + fmt.Sprintf("%#v", output) + ", expected: " + fmt.Sprintf("%#v", expected))
 		}
 	}
 
@@ -209,7 +209,7 @@ func TestAppendTransliterations(t *testing.T) {
 	test([][]string{
 		{"2", "3", "4"},
 		{"3", "4", "5"},
-	}, [][]string{})
+	}, [][]string(nil))
 }
 
 func TestContains(t *testing.T) {
