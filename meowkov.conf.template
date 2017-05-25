@@ -13,12 +13,12 @@
   "MaxChainLength": 30,
   "ChainsToTry": 64,
   "MinResponsePool": 3,
-  "MaxResponseTries": 10,
+  "MaxResponseTries": 8,
 
-  "DefaultChattiness": 0.05,
-  "MinTimeBetweenReactions": 60,
-  "SmileyChance": 0.5,
-  "WordsPerMinute": 400,
+  "DefaultChattiness": 0.025,
+  "MinTimeBetweenReactions": 180,
+  "SmileyChance": 0.10,
+  "WordsPerMinute": 300,
 
   "Smileys": [
     "8<",
