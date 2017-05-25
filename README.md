@@ -74,20 +74,6 @@ cat corpus.txt | make docker-corpus-add
 Changes are instantaneous: corpus import can be performed while bot is running, no restart is required.    
 The same text can be imported multiple times: Markov chains are kept in Redis Sets which provide automatic deduplication.
 
-### Kernel Tuning
-
-If you experience the `cannot assign requested address` error, set:
-
-```
-echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
-```
-and see if it helped. 
-
-To persist this setting between reboots, add this line to `/etc/sysctl.conf`:
-```
-net.ipv4.tcp_tw_reuse = 1
-```
-
 ## License
 
 [CC0 Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/)

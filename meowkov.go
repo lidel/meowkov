@@ -119,7 +119,11 @@ func loadConfig(file string) (bool, bool) {
 		Wait:        true,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", redisServer)
+			timeout := 500 * time.Millisecond
+			c, err := redis.Dial("tcp", redisServer,
+				redis.DialConnectTimeout(timeout),
+				redis.DialReadTimeout(timeout),
+				redis.DialWriteTimeout(timeout))
 			if err != nil {
 				return nil, err
 			}
