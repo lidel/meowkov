@@ -88,10 +88,10 @@ func loadConfig(file string) (bool, bool) {
 
 	log.Info("Loading config file: " + *confPath)
 
-	jsonData, err := ioutil.ReadFile(*confPath)
-	check(err, errorPrefix)
-	err = json.Unmarshal(jsonData, &config)
-	check(err, errorPrefix)
+	jsonData, confError := ioutil.ReadFile(*confPath)
+	check(confError, errorPrefix)
+	confError = json.Unmarshal(jsonData, &config)
+	check(confError, errorPrefix)
 
 	if config.Debug {
 		log.SetLevel(log.DebugLevel)
@@ -115,7 +115,7 @@ func loadConfig(file string) (bool, bool) {
 	log.Println("Connecting to Redis at " + redisServer)
 	pool = &redis.Pool{
 		MaxIdle:     3,
-		MaxActive:   1000,
+		MaxActive:   100,
 		Wait:        true,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
@@ -136,8 +136,8 @@ func loadConfig(file string) (bool, bool) {
 	}
 
 	// irc server validation
-	_, _, err = net.SplitHostPort(config.IrcServer)
-	check(err, errorPrefix)
+	_, _, hostError := net.SplitHostPort(config.IrcServer)
+	check(hostError, errorPrefix)
 
 	// support legacy configs
 	if len(config.Channels) == 0 && config.RoomName != "" {
@@ -493,10 +493,6 @@ func chainTransliterations(seeds [][]string) [][]string {
 }
 
 func generateResponse(input []string, seeds [][]string, triesLeft int) string {
-	var (
-		responses []string
-		response  string
-	)
 
 	if config.Debug {
 		log.Println("Generating response for input: " + dump(input))
@@ -521,7 +517,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 	}
 	wg.Wait()
 
-	responses = normalizeResponseChains(responset)
+	responses := normalizeResponseChains(responset)
 	count := len(responses)
 
 	if config.Debug {
@@ -531,6 +527,7 @@ func generateResponse(input []string, seeds [][]string, triesLeft int) string {
 		}
 	}
 
+	var response string
 	if count >= int(config.MinResponsePool) {
 		response = responses[rand.Intn(count)]
 		response = response + " " + randomSmiley()
