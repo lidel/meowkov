@@ -39,6 +39,12 @@
     "( ͡° ͜ʖ ͡°)"
   ],
 
+  "PredefinedResponses": {
+    "meowkov sucks": "/me :'C",
+    "meowkov rocks": "/me :))",
+    "are you a bot": "no :-^-)"
+  },
+
   "DontEndWith": ["as","of","po","by","from","on","for","przez","with","i","w","z","na","or","za","u","o","do","in","to","a","the","dla"],
   "Blacklist": []
 }

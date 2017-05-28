@@ -50,9 +50,10 @@ var config struct {
 	SmileyChance            float64
 	WordsPerMinute          int64
 
-	Smileys     []string
-	DontEndWith []string
-	Blacklist   []string
+	Smileys             []string
+	PredefinedResponses map[string]string
+	DontEndWith         []string
+	Blacklist           []string
 
 	RoomName string `json:",omitempty"` // deprecated
 }
@@ -115,7 +116,7 @@ func loadConfig(file string) (bool, bool) {
 	log.Println("Connecting to Redis at " + redisServer)
 	pool = &redis.Pool{
 		MaxIdle:     3,
-		MaxActive:   100,
+		MaxActive:   10,
 		Wait:        true,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redis.Conn, error) {
@@ -245,23 +246,42 @@ func ircLoop() {
 		}
 	})
 
+	// thin wrapper responsible for sending IRC messages
+	privmsg := func(source string, nick string, message string, triggeredAt time.Time, prefixWithNick bool) {
+		response := strings.TrimSpace(message)
+		typingDelay(response, triggeredAt)
+		if strings.HasPrefix(response, "/me ") {
+			con.Action(source, strings.Replace(response, "/me ", "", 1))
+		} else {
+			if prefixWithNick {
+				response = nick + ": " + response
+			}
+			con.Privmsg(source, response)
+		}
+	}
+
 	con.AddCallback("PRIVMSG", func(e *irc.Event) {
 		// response takes some work, running in a new thread
 		go func(e *irc.Event) {
 			start := time.Now()
 			ownNick := con.GetNick()
 			source, privateQuery := inputSource(e.Raw, ownNick)
-			words, seeds := processInput(e.Message(), !privateQuery)
-			chattiness := calculateChattiness(e.Message(), ownNick, privateQuery)
+			input := strings.TrimSpace(e.Message())
 
+			if response := predefinedResponse(input); response != "" {
+				bumpLastReaction()
+				privmsg(source, e.Nick, response, start, !privateQuery)
+				return // finish processing input
+			}
+
+			// fallback to markov-based generator
+			words, seeds := processInput(input, !privateQuery)
+			chattiness := calculateChattiness(input, ownNick, privateQuery)
 			if react(chattiness) {
 				bumpLastReaction()
 				response := generateResponse(words, seeds, int(config.MaxResponseTries))
-				if chattiness == always {
-					response = e.Nick + ": " + strings.TrimSpace(response)
-				}
-				typingDelay(response, start)
-				con.Privmsg(source, response)
+				prefixWithNick := chattiness == always && !privateQuery
+				privmsg(source, e.Nick, response, start, prefixWithNick)
 			}
 		}(e)
 	})
@@ -312,6 +332,7 @@ func ircLoop() {
 	log.Panic("The IRC Loop finished prematurely")
 }
 
+// decides if there should be a reaction given current chattiness level
 func react(chattiness float64) bool {
 	return chattiness == always || (chattiness > rand.Float64() && withinReactionRate())
 }
@@ -391,23 +412,25 @@ func processInput(message string, learning bool) (words []string, seed [][]strin
 	return
 }
 
-func parseInput(message string) []string {
-	if otherMention.MatchString(message) {
-		message = otherMention.ReplaceAllString(message, "")
-	}
-
+func parseInput(input string) []string {
 	var (
-		tokens = strings.Split(message, " ")
+		tokens = strings.Split(removeMention(input), " ")
 		words  []string
 	)
-
 	for _, token := range tokens {
 		if word := normalizeWord(token); len(word) > 0 {
 			words = append(words, word)
 		}
 	}
-
 	return append(words, stop)
+}
+
+// remove nickname-based prefix used for mentions
+func removeMention(message string) string {
+	if otherMention.MatchString(message) {
+		return otherMention.ReplaceAllString(message, "")
+	}
+	return message
 }
 
 // normalizeWord removes various cruft from parsed text.
@@ -419,6 +442,19 @@ func normalizeWord(word string) string {
 		word = textCruft.ReplaceAllString(word, "$1")
 	}
 	return word
+}
+
+// lookup for predefined (static) responses
+func predefinedResponse(input string) string {
+	message := removeMention(input)
+	for key, val := range config.PredefinedResponses {
+		if strings.Contains(message, key) {
+			log.Println("Found PredefinedResponses match at key=" + key)
+			// TODO: support evaluating val via external script
+			return val
+		}
+	}
+	return ""
 }
 
 func addToCorpus(seeds [][]string) {
