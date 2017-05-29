@@ -70,10 +70,11 @@ var (
 	lastReaction int64
 	version      string
 
-	ownMention   *regexp.Regexp
-	otherMention *regexp.Regexp
-	httpLink     *regexp.Regexp
-	textCruft    *regexp.Regexp
+	ownMention    *regexp.Regexp
+	otherMention  *regexp.Regexp
+	httpLink      *regexp.Regexp
+	textCruft     *regexp.Regexp
+	emoticonCruft *regexp.Regexp
 )
 
 type uniqueTexts map[string]struct{}
@@ -161,7 +162,9 @@ func loadConfig(file string) (bool, bool) {
 	// detect HTTP(s) URLs
 	httpLink = regexp.MustCompile("^http(s)?://[^/]")
 	// remove single and double quotes, parentheses and ?!, leave semicolons and commas
-	textCruft = regexp.MustCompile(`^[\"'\(\[]*([^\"'\?!\)\]]+)[\"'\?!\)\]]*$`)
+	textCruft = regexp.MustCompile(`^[„“\"'\(\[]*([^\"'\?!\)\]„“”]+)[”“\"'\?!\)\]]*$`)
+	// remove emoticons
+	emoticonCruft = regexp.MustCompile(`^([;:8]["'-^]*[\[\(\]\)<DPdoOcCp]+)$`)
 
 	return *justImport, *purgeCorpus
 }
@@ -440,6 +443,7 @@ func normalizeWord(word string) string {
 	if !httpLink.MatchString(word) { // don't change URLs
 		word = strings.ToLower(word)
 		word = textCruft.ReplaceAllString(word, "$1")
+		word = emoticonCruft.ReplaceAllString(word, "")
 	}
 	return word
 }

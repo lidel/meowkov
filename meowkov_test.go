@@ -114,6 +114,16 @@ func TestNormalizeWord(t *testing.T) {
 	test(" foo! ", "foo")
 	test(" foo!?!?!? ", "foo")
 	test(" foo!?bar ", "foo!?bar")
+	test(" “foo” ", "foo")
+	test(" „foo” ", "foo")
+	test(" :-(((((( ", "")
+	test(" :((( ", "")
+	test(" ;[[ ", "")
+	test(" :-^-< ", "")
+	test(" :\"< ", "")
+	test(" ;'< ", "")
+	test(" :'D ", "")
+	test(" :-Pppp ", "")
 }
 
 func TestGetRedisServer(t *testing.T) {
