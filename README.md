@@ -1,4 +1,7 @@
 # meowkov
+
+![meowkov is happy to interact with humans](https://i.imgur.com/Hja2KRJm.jpg)
+
 [![Build Status](https://travis-ci.org/lidel/meowkov.svg)](https://travis-ci.org/lidel/meowkov)
 [![Coverage Status](https://coveralls.io/repos/lidel/meowkov/badge.svg?branch=master&service=github)](https://coveralls.io/github/lidel/meowkov?branch=master)
 [![Go Report Card](http://goreportcard.com/badge/lidel/meowkov)](http://goreportcard.com/report/lidel/meowkov)
@@ -10,10 +13,9 @@
 - [Background](#background)
   - [Markov Chains](#markov-chains)
 - [Usage](#usage)
-  - [Quick Start](#quick-start)
-  - [Docker Commands](#docker-commands)
+  - [Standalone](#running-standalone-binary)
+  - [Docker](#running-with-docker)
   - [Populating Corpus](#populating-corpus)
-  - [Kernel Tuning](#kernel-tuning)
 - [License](#license)
 
 ## Background
@@ -29,16 +31,40 @@ Created as a learning exercise in [golang](http://golang.org/) and [Redis](http:
 
 ## Usage
 
-### Quick Start
+### Running Standalone Binary
 
 To start your own instance:
 
 1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
-2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `Channels`
+2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName`, `Channels` and `RedisServer`
+3. Run `make build` to build `meowkov` binary
+4. Run `./meowkow`
+5. That is all: meowkov bot will join specified room after a few seconds
+
+#### Commands
+
+- `make build` builds the app
+- `make dev-updatedeps` updates dependencies to latest versions
+- `./meowkow` runs the app against `meowkow.conf` in current directory
+- `./meowkow -c /some/path/meowkow.conf` runs the app with specified config file
+- `echo "some text" | ./meowkov -import=true -purge=false`  adds piped strings to the corpus
+- `echo "some text" | ./meowkov -import=true -purge=true` replaces corpus with piped data
+  (destructive, remember to backup Redis database before executing this)
+
+### Running with Docker
+
+To start dockerized instance with latest Redis:
+
+1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
+2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName` and `Channels` (`RedisServer` will be set automatically by Docker)
 3. Run `make docker-rebuild` to build (in foreground) and run (in background) via Docker container
 4. That is all: meowkov bot will join specified room after a few seconds
 
-### Docker Commands
+#### Docker Commands
+
+`Makefile` provides commands that simplify build and deployment.    
+Commands assume `meowkov.conf` to be present in the same directory as `Makefile`.    
+Redis data with corpus is persisted to `data/dump.rpd`.
 
 - `make docker-rebuild` builds the app and runs it in a container
 - `make docker-update` same as `docker-rebuild` but also checks for updates of `golang` and `redis` images
