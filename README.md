@@ -38,15 +38,15 @@ To start your own instance:
 1. Clone the repo: `git clone https://github.com/lidel/meowkov.git`
 2. Copy `meowkov.conf.template` to `meowkov.conf` and change at least `BotName`, `Channels` and `RedisServer`
 3. Run `make build` to build `meowkov` binary
-4. Run `./meowkow`
+4. Run `./meowkov`
 5. That is all: meowkov bot will join specified room after a few seconds
 
 #### Commands
 
 - `make build` builds the app
 - `make dev-updatedeps` updates dependencies to latest versions
-- `./meowkow` runs the app against `meowkow.conf` in current directory
-- `./meowkow -c /some/path/meowkow.conf` runs the app with specified config file
+- `./meowkov` runs the app against `meowkov.conf` in current directory
+- `./meowkov -c /some/path/meowkov.conf` runs the app with specified config file
 - `echo "some text" | ./meowkov -import=true -purge=false`  adds piped strings to the corpus
 - `echo "some text" | ./meowkov -import=true -purge=true` replaces corpus with piped data
   (destructive, remember to backup Redis database before executing this)
@@ -85,6 +85,10 @@ It is a good idea to bootstrap the corpus using old IRC logs, news articles, etc
 Text can be loaded into the corpus (which is backed by Redis) like this:
 ```
 echo "line one\nline two with more text" | make docker-corpus-add
+```
+or if run in standalone mode:
+```
+echo "line one\nline two with more text" | ./meowkov -import=true -purge=false
 ```
 
 One may also want to generate input on a different machine, for example from weechat logs:
