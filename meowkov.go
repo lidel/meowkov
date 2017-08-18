@@ -158,7 +158,7 @@ func loadConfig(file string) (bool, bool) {
 
 	// detect when own nick is mentioned or when message is directed to other person
 	ownMention = regexp.MustCompile("(?i)_*" + regexp.QuoteMeta(config.BotName) + "_*[:,]*\\s*")
-	otherMention = regexp.MustCompile("(?i)^\\S+[:,]+\\s+")
+	otherMention = regexp.MustCompile(`(?i)^\S+[:,]+\s+`)
 	// detect HTTP(s) URLs
 	httpLink = regexp.MustCompile("^http(s)?://[^/]")
 	// remove single and double quotes, parentheses and ?!, leave semicolons and commas
@@ -375,7 +375,7 @@ func getRedisServer() string {
 	if host != "" {
 		redisHost = host
 		if config.Debug {
-			log.Println("Using Dockerized Redis: " + env + "=" + fmt.Sprint(host))
+			log.Println("Using Dockerized Redis: " + env + "=" + host)
 		}
 	}
 
@@ -391,7 +391,7 @@ func isChainEmpty(texts []string) bool {
 }
 
 func typingDelay(text string, start time.Time) {
-	durationSoFar := time.Now().Sub(start)
+	durationSoFar := time.Since(start)
 	// https://en.wikipedia.org/wiki/Words_per_minute
 	typing := time.Duration((float64(len(text))/5)/float64(config.WordsPerMinute)*60)*time.Second - durationSoFar
 	if config.Debug {
