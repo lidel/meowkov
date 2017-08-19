@@ -3,6 +3,7 @@ GOLINT  ?= golint
 D       ?= docker
 GITHASH ?= $(shell git rev-parse --short HEAD)
 DEPS    ?= $(shell go list -f '{{ join .Deps  "\n"}}' . | grep github.com)
+GOSIMPLE := $(shell command -v gosimple 2> /dev/null)
 TMP_DIR  = /tmp/meowkov-build
 
 print-%: ; @echo $*=$($*) # eg. make print-DEPS
@@ -18,6 +19,10 @@ test: dev-deps
 lint:
 	@$(GOLINT) .
 	@$(GO) vet .
+ifndef GOSIMPLE
+	$(error "gosimple is not available, please install it via: go get honnef.co/go/tools/cmd/gosimple'")
+endif
+	@$(GOSIMPLE) .
 dev-deps:
 	@echo $(DEPS) | xargs -n1 go get -v
 dev-updatedeps:
