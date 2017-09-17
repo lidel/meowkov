@@ -38,8 +38,8 @@ docker-rebuild: docker-stop docker-clean
 	$(D) run --net=none --rm meowkov_builder | docker build -t meowkov -f Dockerfile.run -
 	$(D) rmi -f meowkov_builder
 
-	$(D) run -d -v $(CURDIR)/data:/data:rw --name meowkov_corpus redis
-	$(D) run -d -v $(CURDIR)/meowkov.conf:/meowkov.conf:ro --link meowkov_corpus:redis -it --name meowkov_irc meowkov
+	$(D) run -d --restart unless-stopped -v $(CURDIR)/data:/data:rw --name meowkov_corpus redis
+	$(D) run -d --restart unless-stopped -v $(CURDIR)/meowkov.conf:/meowkov.conf:ro --link meowkov_corpus:redis -it --name meowkov_irc meowkov
 docker-start:
 	$(D) start meowkov_corpus
 	$(D) start meowkov_irc
