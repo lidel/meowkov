@@ -13,7 +13,7 @@ travis: dev-deps test build
 
 build:  dev-deps test
 	# build statically-linked binary
-	CGO_ENABLED=0 $(GO) build -ldflags "-X main.version=$(GITHASH)"  meowkov.go
+	CGO_ENABLED=0 $(GO) build -ldflags "-X main.version=$(GITHASH)" -gcflags "all=-trimpath=$(GOPATH)"  meowkov.go
 test: dev-deps
 	$(GO) test
 lint:
