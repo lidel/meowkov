@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
-func init() {
+func TestMain(m *testing.M) {
 	// run against config template
+	// flag.Parse()
 	loadConfig("meowkov.conf.template")
+	os.Exit(m.Run())
 }
 
 func TestProcessInput(t *testing.T) {
